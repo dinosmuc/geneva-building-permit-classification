@@ -1,1 +1,1 @@
-"""Geneva building-permit classification — reusable experiment code."""
+"""Geneva building-permit classification."""
