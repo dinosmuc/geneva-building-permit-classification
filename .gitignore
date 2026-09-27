@@ -9,11 +9,10 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
-# course material — IU holds copyright on the task sheet and objects to
-# republication; the SwissText guide is reference only. Not part of the submission.
+# reference material, not part of this repository
 documentation/
 
-# corpora — SITG terms plus size. data/splits/ manifests ARE tracked (§9).
+# corpora — SITG terms plus size; data/splits/ manifests stay tracked
 data/raw/*
 !data/raw/.gitkeep
 data/prepared/*
