@@ -9,11 +9,10 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
-# reference material
-# not part of this repository
+# reference material, not part of this repository
 documentation/
 
-# corpora — SITG terms plus size. data/splits/ manifests ARE tracked (§9).
+# corpora — SITG terms plus size; data/splits/ manifests stay tracked
 data/raw/*
 !data/raw/.gitkeep
 data/prepared/*
