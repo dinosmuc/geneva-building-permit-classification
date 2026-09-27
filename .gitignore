@@ -1,0 +1,29 @@
+# env
+.venv/
+.env
+
+# python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+
+# course material — IU holds copyright on the task sheet and objects to
+# republication; the SwissText guide is reference only. Not part of the submission.
+documentation/
+
+# corpora — SITG terms plus size. data/splits/ manifests ARE tracked (§9).
+data/raw/*
+!data/raw/.gitkeep
+data/prepared/*
+!data/prepared/.gitkeep
+
+# experiment outputs — checkpoints, raw API responses, tracking stores
+mlruns/
+mlartifacts/
+results/**/checkpoints/
+results/**/raw_responses/
+*.safetensors
+*.bin
+*.ckpt
