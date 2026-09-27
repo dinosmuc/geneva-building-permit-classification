@@ -1,0 +1,78 @@
+# Single source of experiment settings. Every value states its reason.
+# `null` means the value is set by a bounded pilot and frozen before the main runs.
+
+data:
+  # https://sitg.ge.ch/donnees/sit-autor-dossier
+  source: SIT_AUTOR_DOSSIER
+  input_field: DESCRIPTION            # the only field the models see
+  excluded_fields:                    # answer-bearing or procedural, never model input
+    - TYPE_OPERATION
+    - OPERATION
+  target_classes: [AFF, AGR, AGV, EQU, NOU, PI, REN, VIL]
+  excluded_classes: [AM]              # planning cases, outside the target taxonomy
+
+  # Calendar split, not 70/10/20: label availability changes strongly over time.
+  # All conditions share identical validation and test membership.
+  splits:
+    train_original:  {to: 2010}
+    validation:      {from: 2011, to: 2012}
+    test_historical: {from: 2013, to: 2013}
+    test_recent:     {from: 2014, to: 2026}   # primary test source
+    pool_unlabelled: {from: 2014, to: 2026}   # teacher annotation candidates
+
+  dedup:
+    group_key: dossier                # no dossier group spans two partitions
+    fold_accents: true                # for grouping only; model input keeps original text
+    fold_punctuation: true
+
+models:
+  primary:
+    id: almanach/camembertav2-base
+    revision: 54cc91d6ac45a540c7e0faeb677f4dd8201d3d61
+    params: 110617600                 # verified via the HF API, 2026-09-27
+  challenger:
+    id: jhu-clsp/mmBERT-base
+    revision: c5955035435e2bf121cde7f3c8863ef52ff35d82
+
+teacher:
+  provider: deepseek
+  model: null                         # alias unverified — needs an API key to list models
+  backup:
+    provider: apertus
+    model: swiss-ai/Apertus-v1.5-70B
+  temperature: null                   # fixed before bulk annotation, logged with each response
+  max_cost_eur: null                  # hard cap, set from the token pilot
+
+training:
+  seeds: [13, 42, 73]                 # reproducibility identifiers, nothing special about them
+
+  # Measured on this RTX 2070 (sm_75): fp16 27.2, fp32 6.4, bf16 3.9 TFLOP/s.
+  # bf16 reports as supported but is emulated, so fp16 is the only sensible choice.
+  precision: fp16
+
+  max_seq_length: null                # from the training token-length distribution
+  learning_rate: null                 # bounded validation pilot
+  effective_batch_size: null          # 8 GB VRAM: per-device batch x gradient accumulation
+  total_updates: null                 # held constant across all four conditions
+
+  # Order is the independent variable; examples, per-source exposure, loss,
+  # effective batch size and total updates are held constant across conditions.
+  conditions: [o_only, mixed, p_then_o, o_then_p]
+
+evaluation:
+  primary_metric: macro_f1
+  primary_partition: test_recent_text_disjoint
+  primary_contrast: [p_then_o, mixed]
+
+  # Text-disjoint means disjoint from every training source, P included.
+  text_disjoint_against: [train_original, pool_accepted, validation]
+
+  min_class_support: null             # classes below this are reported but excluded from the headline
+  bootstrap_samples: null
+  bootstrap_cluster_by: dossier
+
+paths:
+  raw: data/raw
+  prepared: data/prepared
+  splits: data/splits
+  results: results

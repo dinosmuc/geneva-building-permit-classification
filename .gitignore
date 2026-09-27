@@ -1,0 +1,29 @@
+# env
+.venv/
+.env
+
+# python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+
+# reference material
+# not part of this repository
+documentation/
+
+# corpora — SITG terms plus size. data/splits/ manifests ARE tracked (§9).
+data/raw/*
+!data/raw/.gitkeep
+data/prepared/*
+!data/prepared/.gitkeep
+
+# experiment outputs — checkpoints, raw API responses, tracking stores
+mlruns/
+mlartifacts/
+results/**/checkpoints/
+results/**/raw_responses/
+*.safetensors
+*.bin
+*.ckpt
