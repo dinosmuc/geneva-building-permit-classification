@@ -21,7 +21,7 @@ ARCHIVE_PATH = RAW_DIR / SOURCE_URL.split("/")[-1]
 
 CSV_MEMBER = "SIT_AUTOR_DOSSIER.csv"
 CSV_SEPARATOR = ";"
-DATE_FORMAT = "%Y%m%d"                      # DATE_DEPOT is stored as 20020226
+DATE_FORMAT = "%Y%m%d"  # DATE_DEPOT is stored as 20020226
 DATE_COLUMNS = ["DATE_DEPOT", "DATE_MAJ_2"]
 
 # Tried in order; the first one that decodes is recorded in the manifest.
@@ -52,7 +52,7 @@ def download_source(raw_dir=RAW_DIR, url=SOURCE_URL):
 
     response = httpx.get(url, follow_redirects=True, timeout=120.0)
     response.raise_for_status()
-    archive.write_bytes(response.content)     # 8 MB, no need to stream
+    archive.write_bytes(response.content)  # 8 MB, no need to stream
 
     with zipfile.ZipFile(archive) as opened:
         members = sorted(opened.namelist())
