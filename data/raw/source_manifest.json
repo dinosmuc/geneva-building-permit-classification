@@ -1,0 +1,13 @@
+{
+  "url": "https://ge.ch/sitg/geodata/SITG/OPENDATA/SIT_AUTOR_DOSSIER-CSV.zip",
+  "downloaded_at": "2026-09-27T12:04:56+00:00",
+  "last_modified": "Sun, 27 Sep 2026 06:55:18 GMT",
+  "bytes": 8379488,
+  "sha256": "c3bb087d74926393b9d83361946c9a54f4cff186c5d3400d013e7f8a78b10b91",
+  "members": [
+    "DOC/Conditions generales d'utilisation des donnees et produits du SITG en libre acces.pdf",
+    "DOC/Informations_date.txt",
+    "DOC/SIT_AUTOR_DOSSIER.pdf",
+    "SIT_AUTOR_DOSSIER.csv"
+  ]
+}
