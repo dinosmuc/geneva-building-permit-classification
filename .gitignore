@@ -15,6 +15,7 @@ documentation/
 # corpora — SITG terms plus size; data/splits/ manifests stay tracked
 data/raw/*
 !data/raw/.gitkeep
+!data/raw/source_manifest.json
 data/prepared/*
 !data/prepared/.gitkeep
 
