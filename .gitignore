@@ -13,6 +13,8 @@ __pycache__/
 documentation/
 
 # corpora — SITG terms plus size; data/splits/ manifests stay tracked
+# data/raw keeps the pinned archive and live/<date>/ downloads local; source_manifest.json is
+# the tracked lock that pins the archive
 data/raw/*
 !data/raw/.gitkeep
 !data/raw/source_manifest.json
