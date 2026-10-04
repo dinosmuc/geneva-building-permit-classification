@@ -56,3 +56,5 @@ paths:
   prepared: data/prepared
   splits: data/splits
   results: results
+  figures: results/figures
+  annotations: data/annotations
