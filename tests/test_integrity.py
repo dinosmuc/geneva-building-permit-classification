@@ -1,14 +1,6 @@
 """Integrity gates. Split and annotation checks are added as the pipeline lands."""
 
-from pathlib import Path
-
-import yaml
-
-CONFIG = Path(__file__).resolve().parent.parent / "config.yaml"
-
-
-def load_config():
-    return yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+from geneva_permits.config import load_config
 
 
 def test_config_parses():
