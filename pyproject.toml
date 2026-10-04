@@ -21,6 +21,13 @@ dependencies = [
     "transformers>=5.17.0",
 ]
 
+[build-system]
+requires = ["uv_build>=0.11.25,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "geneva_permits"
+
 [dependency-groups]
 dev = [
     "ipykernel>=7.3.0",
@@ -39,4 +46,3 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]

@@ -1,8 +1,8 @@
-"""Regression checks for the source loader."""
+"""Regression checks for field-level cleaning."""
 
 import pandas as pd
 
-from src.data import is_missing, normalize_description, parse_dates
+from geneva_permits.cleaning import is_missing, normalize_description, parse_dates
 
 
 def test_parse_dates_handles_both_source_formats():
