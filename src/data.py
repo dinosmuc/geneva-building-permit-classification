@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+import re
+import unicodedata
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,14 +24,23 @@ ARCHIVE_PATH = RAW_DIR / SOURCE_URL.split("/")[-1]
 CSV_MEMBER = "SIT_AUTOR_DOSSIER.csv"
 CSV_SEPARATOR = ";"
 DATE_FORMAT = "%Y%m%d"  # DATE_DEPOT is stored as 20020226
+TIMESTAMP_FORMAT = "%Y%m%d%H%M%S"  # three filing dates carry a time of day
 DATE_COLUMNS = ["DATE_DEPOT", "DATE_MAJ_2"]
 
 # Tried in order; the first one that decodes is recorded in the manifest.
 CANDIDATE_ENCODINGS = ["utf-8-sig", "utf-8", "cp1252", "latin-1"]
 
-# Sentinels the export uses instead of empty cells.
+# Sentinels the export uses instead of empty cells, one per field.
 MISSING_OPERATION_CODE = "--"
 MISSING_DESCRIPTION = "non renseigné"
+MISSING_STATUS = "-"
+MISSING_OPERATION_LABEL = "Non renseigné (valeur par défaut à l'importation des données)"
+PLACEHOLDERS = {
+    "TYPE_OPERATION": MISSING_OPERATION_CODE,
+    "DESCRIPTION": MISSING_DESCRIPTION,
+    "STATUT": MISSING_STATUS,
+    "OPERATION": MISSING_OPERATION_LABEL,
+}
 
 
 def sha256_of(path):
@@ -83,6 +94,13 @@ def detect_encoding(archive=ARCHIVE_PATH, member=CSV_MEMBER):
     raise ValueError("no candidate encoding decodes " + member)
 
 
+def parse_dates(values):
+    """Parse YYYYMMDD values, falling back to YYYYMMDDHHMMSS truncated to the day."""
+    dates = pd.to_datetime(values, format=DATE_FORMAT, errors="coerce")
+    timestamps = pd.to_datetime(values, format=TIMESTAMP_FORMAT, errors="coerce")
+    return dates.fillna(timestamps.dt.normalize())
+
+
 def load_source(archive=ARCHIVE_PATH, member=CSV_MEMBER):
     """Read the export as text, parsing only the two date columns."""
     encoding = detect_encoding(archive, member)
@@ -90,8 +108,26 @@ def load_source(archive=ARCHIVE_PATH, member=CSV_MEMBER):
         with opened.open(member) as handle:
             frame = pd.read_csv(handle, sep=CSV_SEPARATOR, encoding=encoding, dtype="string")
     for column in DATE_COLUMNS:
-        frame[column] = pd.to_datetime(frame[column], format=DATE_FORMAT, errors="coerce")
+        frame[column] = parse_dates(frame[column])
     return frame
+
+
+def is_missing(values, column):
+    """True where a field is null or holds that field's placeholder."""
+    missing = values.isna()
+    if column in PLACEHOLDERS:
+        missing |= values.eq(PLACEHOLDERS[column]).fillna(False)
+    return missing
+
+
+def normalize_description(text):
+    """Grouping key: casefold, strip accents, collapse punctuation and whitespace.
+
+    Used only for repetition and overlap checks; the model reads the original text.
+    """
+    text = unicodedata.normalize("NFKD", text.casefold())
+    text = "".join(character for character in text if not unicodedata.combining(character))
+    return re.sub(r"[\W_]+", " ", text).strip()
 
 
 def operation_labels(frame):
