@@ -9,5 +9,11 @@
     "DOC/Informations_date.txt",
     "DOC/SIT_AUTOR_DOSSIER.pdf",
     "SIT_AUTOR_DOSSIER.csv"
-  ]
+  ],
+  "file": "SIT_AUTOR_DOSSIER-CSV_2026-09-27.zip",
+  "mirror_url": "https://github.com/dinosmuc/geneva-building-permit-classification/releases/download/data-sitg-2026-09-27/SIT_AUTOR_DOSSIER-CSV_2026-09-27.zip",
+  "live_url": "https://ge.ch/sitg/geodata/SITG/OPENDATA/SIT_AUTOR_DOSSIER-CSV.zip",
+  "sitg_zip_created": "2026-09-27T08:27:23",
+  "sitg_extracted": "2026-09-25",
+  "sitg_extraction_note": "extraites de la géodatabase du SITG le vendredi soir précédent le 27.09.2026"
 }
