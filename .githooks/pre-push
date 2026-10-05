@@ -3,6 +3,8 @@
 # Enable once with: git config core.hooksPath .githooks
 set -e
 
+uv sync --locked
+uv run permits data fetch
 uv run ruff format --check .
 uv run ruff check .
 uv run pytest -q
