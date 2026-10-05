@@ -27,3 +27,5 @@ uv run pytest -q
 ```
 
 Source : Portail des données SITG (État de Genève), téléchargé en date du 27.09.2026.
+Use of the data is subject to SITG's conditions of use, which ship inside the archive under
+`DOC/`.
