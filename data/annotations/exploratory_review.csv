@@ -1,49 +1,49 @@
-review_id,OBJECTID,description,assigned_category,review_status,multiple_operations,notes
-1,118860,pose d'un cabanon de jardin,PI,assigned,False,Minor garden construction.
-2,126022,aménagement d'une bordure abaissée,,insufficient_information,False,EQU candidate; public/private context unspecified.
-3,164104,containers enterrés pour tri sélectif des déchets,,insufficient_information,False,EQU candidate; public/private context unspecified.
-4,144863,isolation d'un toit et pose de panneaux photovoltaïques,,ambiguous,True,REN / PI: roof insulation and photovoltaic installation.
-5,187338,"Construction d'un bâtiment de logements pour étudiants et d'activités, agrandissement et rénovation de la maison communale, réaménagement d'un édifice à valeur patrimoniale, abattage et/ou élagage d'arbres hors forêt (RCVA)",,ambiguous,True,"NOU / AGR / REN: new building, enlargement and renovation."
-6,118844,création d'une villa mitoyenne avec garage,VIL,assigned,False,New attached villa with garage.
-7,118517,agrandissement d'une villa,AGV,assigned,False,Villa enlargement; no additional dwelling mentioned.
-8,159839,"construction d'un accès réservé à l'usine de traitement des déchetsspéciaux (CTDS), abattage d'arbres, défrichement n° 2021-10 t+d",,insufficient_information,True,EQU candidate; access work and tree removal. Public/private context and t+d unclear.
-9,188571,"Changement d'affectation de bureaux en logements (étages 2ème, 4ème et 5ème)",AFF,assigned,False,Explicit conversion of offices into housing.
-10,94386,installation d'un sanitaire public monobloc,EQU,assigned,False,Installation of a public sanitation facility.
-11,138453,"(surélévation d'un immeuble - création de seize appartements) -modification du projet initial, modification du nombre de piècesdans 8 appartements",,ambiguous,True,AGR / REN: original vertical extension versus current modification of apartment room counts.
-12,157962,transformation d'un local à vélo en appartement au rez-de-chaussée,AFF,assigned,False,Conversion of bicycle storage into housing.
-13,171621,surélévation d'un immeuble,AGR,assigned,False,Vertical extension of an existing building.
-14,195281,"Construction d'un habitat groupé (47% THPE), couverts à vélos, abattage et/ou élagage d'arbres hors forêt (RCVA)",,ambiguous,True,NOU / VIL: grouped housing without a clear building type; also bicycle shelters and tree work. THPE and RCVA not expanded.
-15,122476,transformation et rénovation de la maison de quartier des Avanchets,REN,assigned,False,Renovation and transformation of a community centre; no explicit extension or change of use.
-16,122411,démolition des greniers avec réalisation de deux étages sur combles - panneaux solaires en toiture,AGR,assigned,True,Creation of two additional levels is the main stated work; also attic demolition and solar panels.
-17,116075,pose d'un abribus,EQU,assigned,False,Installation of a bus shelter.
-18,187541,rénovation énergétique de l'enveloppe thermique d'un immeuble,REN,assigned,False,Energy renovation of an existing building envelope.
-19,76604,installation d'un réseau de chauffage à distance,,insufficient_information,False,EQU candidate: district-heating network; public-domain context unspecified.
-20,189380,"Régularisation I - 8219- Transformation, surélévation et changement d'affectation d'une halle de stockage en bâtiment administratif",,ambiguous,True,AFF / AGR: change from storage to administrative use combined with a vertical extension.
-21,166676,station vélos,,insufficient_information,False,Bicycle station; nature of work and public/private context unclear.
-22,147168,Mise en conformité suite au dossier d'infraction I-7327,,insufficient_information,False,Administrative compliance reference without a description of the physical work.
-23,171384,rénovation d'un logement au rez-de-chaussée,REN,assigned,False,Renovation of an existing dwelling.
-24,194227,remplacement d'un chauffage au gaz par une installation d'une pompe à chaleur - remplacement de fenêtres,REN,assigned,True,Replacement of heating equipment and windows; no explicit extension or change of use.
-25,99462,transformation d'un bureau en logement au 2ème étage,AFF,assigned,False,Explicit conversion of an office into housing.
-26,115530,isolation et réfection de l'enveloppe et de la toiture -panneaux solaires,,ambiguous,True,REN / PI: envelope and roof renovation plus solar panels; same treatment as review 4.
-27,97451,reconstruction provisoire après incendie de l'envelopped'une halle de stockage,REN,assigned,False,Reconstruction of an existing hall's envelope after fire; no enlargement or whole-building reconstruction stated.
-28,80081,"""Stade de Compesières"" transformation et agrandissement vestiaires et buvette -",AGR,assigned,True,Transformation and enlargement of changing rooms and a refreshment facility.
-29,157848,création d'un sous-sol et parking souterraintransformations diverses - ascenseur,,insufficient_information,True,"AGR candidate: new basement, underground parking and alterations; basement use and building type unspecified."
-30,146324,DD9 - Transformation du bâtiment - modification de la façadepour accroche d'une passerelle - démolition d'excroissance du sous-sol etcréation de liaisons souterraines (avec îlot B du PLQ PAV Etoile),,ambiguous,True,REN / AGR: existing-building alterations and underground links; qualifying additional floor area unclear. PLQ/PAV not expanded.
-31,165931,aménagement d'un atelier et d'une galerie d'art,,insufficient_information,False,AFF / REN candidates: workshop and art-gallery fit-out; previous use and nature of the alterations unspecified.
-32,195134,Transformation partielle de deux immeubles - réfection des façades et d'une cour intérieure - aménagement des combles d'un immeuble d'habitation - rénovation d'un appartement et transformation d'un local commercial au rez-de-chaussée,,ambiguous,True,AGR / REN: several renovations plus attic fit-out; creation of additional residential floor area unclear.
-33,114559,construction d'un hangar agricole avec une habitation,NOU,assigned,False,New agricultural building incorporating housing.
-34,116323,changement d'affectation de bureau en logement au rez-de-chaussée,AFF,assigned,False,Explicit change from office use to housing.
-35,171786,"construction de villas jumellées et mitoyennes (HPE 31,6%)garages - sondes géothermiques",VIL,assigned,True,"New semi-detached and attached villas, garages and geothermal probes. HPE not expanded."
-36,76056,construction de 4 villas contiguës - garages,VIL,assigned,False,Four new attached villas with accompanying garages.
-37,131486,(construction d'un parc de stationnement de deux niveaux en sous-sol) modifications des accès pompiers,,insufficient_information,False,Current request modifies firefighter access; parking construction is background. Nature of access changes unclear.
-38,134169,division d'un logement en deux au 3ème étage,REN,assigned,False,Internal subdivision of an existing apartment; no additional floor area or change from residential use stated.
-39,175334,agrandissement villa - modification des jours en façades et de la typologie intérieure - création d'un garage,AGV,assigned,True,Villa enlargement with facade/internal alterations and a garage.
-40,117674,construction d'un immeuble de logements - garage souterrainplaces de parcs extérieures - sondes géothermique - place de jeuxpanneaux solaire en toiture - containers enterrés,NOU,assigned,True,New residential building with parking and ancillary installations.
-41,132746,construction d'un parking provisoire,,insufficient_information,False,Temporary parking; structure and public/private context unspecified.
-42,114270,aménagement d'un étang de baignade naturelleconstruction d'un abri de jardin,PI,assigned,True,Garden shelter and natural swimming pond; private-domain context inferred from garden works.
-43,108447,construction d'un immeuble administratif - garage souterrain,NOU,assigned,False,New administrative building with accompanying underground parking.
-44,175982,modification de l'attique pour création d'appartements - mise à jour des installations techniques et mise en conformité protection incendie,,ambiguous,True,AGR / REN: attic alteration to create apartments; additional residential floor area versus rearrangement unclear.
-45,168698,divison d'un logement au 3ème étage en deux appartements,REN,assigned,False,Internal subdivision of an existing apartment; same treatment as review 38.
-46,147881,assainissement et agrandissement d'une maison familiale en zone agricole,AGV,assigned,True,Renovation and enlargement of a single-family house.
-47,117999,changement des tuiles de la toiture,REN,assigned,False,Replacement of roof tiles.
-48,167091,construction de trois maisons mitoyennes HPE 44% et vérandaspanneaux solaires en toiture,VIL,assigned,True,Three new attached houses with verandas and solar panels.
+review_id,OBJECTID,record_key,description,assigned_category,review_status,multiple_operations,notes
+1,118860,DD 106295/1|2494800.8|1118152.79,pose d'un cabanon de jardin,PI,assigned,False,Minor garden construction.
+2,126022,APA 43998/1|2504765.51|1116423.33,aménagement d'une bordure abaissée,,insufficient_information,False,EQU candidate; public/private context unspecified.
+3,164104,APA 36675/1|2506971.69|1118026.55,containers enterrés pour tri sélectif des déchets,,insufficient_information,False,EQU candidate; public/private context unspecified.
+4,144863,APA 309380/1|2504752.66|1122345.34,isolation d'un toit et pose de panneaux photovoltaïques,,ambiguous,True,REN / PI: roof insulation and photovoltaic installation.
+5,187338,DD 338496/1|2503081.47|1113725.39,"Construction d'un bâtiment de logements pour étudiants et d'activités, agrandissement et rénovation de la maison communale, réaménagement d'un édifice à valeur patrimoniale, abattage et/ou élagage d'arbres hors forêt (RCVA)",,ambiguous,True,"NOU / AGR / REN: new building, enlargement and renovation."
+6,118844,DD 106381/1|2500366.42|1124856.28,création d'une villa mitoyenne avec garage,VIL,assigned,False,New attached villa with garage.
+7,118517,DD 106454/1|2506552.03|1126253.1,agrandissement d'une villa,AGV,assigned,False,Villa enlargement; no additional dwelling mentioned.
+8,159839,DD 114234/1|2491451.34|1116841.29,"construction d'un accès réservé à l'usine de traitement des déchetsspéciaux (CTDS), abattage d'arbres, défrichement n° 2021-10 t+d",,insufficient_information,True,EQU candidate; access work and tree removal. Public/private context and t+d unclear.
+9,188571,DD 345920/1|2498422.67|1118190.55,"Changement d'affectation de bureaux en logements (étages 2ème, 4ème et 5ème)",AFF,assigned,False,Explicit conversion of offices into housing.
+10,94386,DD 98557/1|2502409.95|1115549.75,installation d'un sanitaire public monobloc,EQU,assigned,False,Installation of a public sanitation facility.
+11,138453,DD 106464/2|2497831.31|1118783.05,"(surélévation d'un immeuble - création de seize appartements) -modification du projet initial, modification du nombre de piècesdans 8 appartements",,ambiguous,True,AGR / REN: original vertical extension versus current modification of apartment room counts.
+12,157962,APA 47467/1|2494864.77|1121101.33,transformation d'un local à vélo en appartement au rez-de-chaussée,AFF,assigned,False,Conversion of bicycle storage into housing.
+13,171621,DD 104448/1|2500238.6|1116526.43,surélévation d'un immeuble,AGR,assigned,False,Vertical extension of an existing building.
+14,195281,DD 336229/1|2502635|1113619.9,"Construction d'un habitat groupé (47% THPE), couverts à vélos, abattage et/ou élagage d'arbres hors forêt (RCVA)",,ambiguous,True,NOU / VIL: grouped housing without a clear building type; also bicycle shelters and tree work. THPE and RCVA not expanded.
+15,122476,DD 107352/1|2497359.52|1119831.57,transformation et rénovation de la maison de quartier des Avanchets,REN,assigned,False,Renovation and transformation of a community centre; no explicit extension or change of use.
+16,122411,DD 107455/1|2499745.21|1118335.47,démolition des greniers avec réalisation de deux étages sur combles - panneaux solaires en toiture,AGR,assigned,True,Creation of two additional levels is the main stated work; also attic demolition and solar panels.
+17,116075,APA 37842/1|2496961.05|1118855.73,pose d'un abribus,EQU,assigned,False,Installation of a bus shelter.
+18,187541,APA 322703/1|2500818.91|1117647.35,rénovation énergétique de l'enveloppe thermique d'un immeuble,REN,assigned,False,Energy renovation of an existing building envelope.
+19,76604,APA 31013/1|2501904.95|1114120.54,installation d'un réseau de chauffage à distance,,insufficient_information,False,EQU candidate: district-heating network; public-domain context unspecified.
+20,189380,DD 317543/1|2494853.82|1120124.88,"Régularisation I - 8219- Transformation, surélévation et changement d'affectation d'une halle de stockage en bâtiment administratif",,ambiguous,True,AFF / AGR: change from storage to administrative use combined with a vertical extension.
+21,166676,APA 37360/1|2500377.19|1119527.71,station vélos,,insufficient_information,False,Bicycle station; nature of work and public/private context unclear.
+22,147168,DD 114141/1|2499852.5|1124411.42,Mise en conformité suite au dossier d'infraction I-7327,,insufficient_information,False,Administrative compliance reference without a description of the physical work.
+23,171384,APA 38757/1|2498002.24|1116103.94,rénovation d'un logement au rez-de-chaussée,REN,assigned,False,Renovation of an existing dwelling.
+24,194227,APA 343631/1|2504015.37|1123093.72,remplacement d'un chauffage au gaz par une installation d'une pompe à chaleur - remplacement de fenêtres,REN,assigned,True,Replacement of heating equipment and windows; no explicit extension or change of use.
+25,99462,APA 23493/1|2498988.01|1117561.06,transformation d'un bureau en logement au 2ème étage,AFF,assigned,False,Explicit conversion of an office into housing.
+26,115530,APA 36825/1|2503125.81|1116595.02,isolation et réfection de l'enveloppe et de la toiture -panneaux solaires,,ambiguous,True,REN / PI: envelope and roof renovation plus solar panels; same treatment as review 4.
+27,97451,APA 27548/1|2498922.54|1115508,reconstruction provisoire après incendie de l'envelopped'une halle de stockage,REN,assigned,False,Reconstruction of an existing hall's envelope after fire; no enlargement or whole-building reconstruction stated.
+28,80081,DD 96985/1|2498197.49|1111669.07,"""Stade de Compesières"" transformation et agrandissement vestiaires et buvette -",AGR,assigned,True,Transformation and enlargement of changing rooms and a refreshment facility.
+29,157848,DD 105054/1|2503029.43|1119725.3,création d'un sous-sol et parking souterraintransformations diverses - ascenseur,,insufficient_information,True,"AGR candidate: new basement, underground parking and alterations; basement use and building type unspecified."
+30,146324,DD 114180/1|2499077.85|1116093.56,DD9 - Transformation du bâtiment - modification de la façadepour accroche d'une passerelle - démolition d'excroissance du sous-sol etcréation de liaisons souterraines (avec îlot B du PLQ PAV Etoile),,ambiguous,True,REN / AGR: existing-building alterations and underground links; qualifying additional floor area unclear. PLQ/PAV not expanded.
+31,165931,APA 37521/1|2500418.28|1118795.89,aménagement d'un atelier et d'une galerie d'art,,insufficient_information,False,AFF / REN candidates: workshop and art-gallery fit-out; previous use and nature of the alterations unspecified.
+32,195134,DD 339358/1|2499982.82|1118032.05,Transformation partielle de deux immeubles - réfection des façades et d'une cour intérieure - aménagement des combles d'un immeuble d'habitation - rénovation d'un appartement et transformation d'un local commercial au rez-de-chaussée,,ambiguous,True,AGR / REN: several renovations plus attic fit-out; creation of additional residential floor area unclear.
+33,114559,DP 18421/1|2499203.13|1111194.2,construction d'un hangar agricole avec une habitation,NOU,assigned,False,New agricultural building incorporating housing.
+34,116323,APA 37876/1|2500829.84|1117038.28,changement d'affectation de bureau en logement au rez-de-chaussée,AFF,assigned,False,Explicit change from office use to housing.
+35,171786,DD 105403/1|2505338.93|1116862.15,"construction de villas jumellées et mitoyennes (HPE 31,6%)garages - sondes géothermiques",VIL,assigned,True,"New semi-detached and attached villas, garages and geothermal probes. HPE not expanded."
+36,76056,DD 97435/1|2491623.38|1112399.02,construction de 4 villas contiguës - garages,VIL,assigned,False,Four new attached villas with accompanying garages.
+37,131486,DD 107109/2|2499093.45|1114075.63,(construction d'un parc de stationnement de deux niveaux en sous-sol) modifications des accès pompiers,,insufficient_information,False,Current request modifies firefighter access; parking construction is background. Nature of access changes unclear.
+38,134169,APA 49901/1|2502164.41|1114228.35,division d'un logement en deux au 3ème étage,REN,assigned,False,Internal subdivision of an existing apartment; no additional floor area or change from residential use stated.
+39,175334,APA 20263/1|2505740.68|1117581.91,agrandissement villa - modification des jours en façades et de la typologie intérieure - création d'un garage,AGV,assigned,True,Villa enlargement with facade/internal alterations and a garage.
+40,117674,DD 105981/1|2498284.08|1116382.42,construction d'un immeuble de logements - garage souterrainplaces de parcs extérieures - sondes géothermique - place de jeuxpanneaux solaire en toiture - containers enterrés,NOU,assigned,True,New residential building with parking and ancillary installations.
+41,132746,DD 111075/1|2493235.65|1121373.32,construction d'un parking provisoire,,insufficient_information,False,Temporary parking; structure and public/private context unspecified.
+42,114270,APA 316420/1|2500930.56|1113608.11,aménagement d'un étang de baignade naturelleconstruction d'un abri de jardin,PI,assigned,True,Garden shelter and natural swimming pond; private-domain context inferred from garden works.
+43,108447,DP 17738/1|2501387.94|1116240.92,construction d'un immeuble administratif - garage souterrain,NOU,assigned,False,New administrative building with accompanying underground parking.
+44,175982,DP 18488/1|2500732.73|1116503.03,modification de l'attique pour création d'appartements - mise à jour des installations techniques et mise en conformité protection incendie,,ambiguous,True,AGR / REN: attic alteration to create apartments; additional residential floor area versus rearrangement unclear.
+45,168698,APA 43590/1|2501490.97|1117894.59,divison d'un logement au 3ème étage en deux appartements,REN,assigned,False,Internal subdivision of an existing apartment; same treatment as review 38.
+46,147881,DP 18915/1|2504741.52|1134473.77,assainissement et agrandissement d'une maison familiale en zone agricole,AGV,assigned,True,Renovation and enlargement of a single-family house.
+47,117999,APA 39402/1|2497015.42|1111843.18,changement des tuiles de la toiture,REN,assigned,False,Replacement of roof tiles.
+48,167091,DD 107272/1|2501209.01|1114613.41,construction de trois maisons mitoyennes HPE 44% et vérandaspanneaux solaires en toiture,VIL,assigned,True,Three new attached houses with verandas and solar panels.
