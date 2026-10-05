@@ -1,41 +1,34 @@
 """The pinned SITG snapshot: fetch, verify and read.
 
 `source_manifest.json` is a lock file: code reads it and never writes it. Changing the pin is a
-manual, reviewed edit. Only `fetch_live_snapshot` contacts SITG, and it writes outside the pin.
+manual, reviewed edit.
 """
 
 import contextlib
 import hashlib
 import json
 import os
-import re
 import tempfile
 import zipfile
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
 import pandas as pd
 
-from geneva_permits.cleaning import parse_dates
 from geneva_permits.paths import RAW_DIR
 
 LOCK_NAME = "source_manifest.json"
-LEGACY_NAME = "SIT_AUTOR_DOSSIER-CSV.zip"  # unversioned name used before the pin
-LIVE_DIR_NAME = "live"
-LIVE_MANIFEST_NAME = "manifest.json"
-
 CSV_MEMBER = "SIT_AUTOR_DOSSIER.csv"
 CSV_SEPARATOR = ";"
 DATE_COLUMNS = ["DATE_DEPOT", "DATE_MAJ_2"]
-DATE_INFO_MEMBER = "DOC/Informations_date.txt"
+DATE_FORMAT = "%Y%m%d"  # DATE_DEPOT is stored as 20020226
+TIMESTAMP_FORMAT = "%Y%m%d%H%M%S"  # three filing dates carry a time of day
 
 # Tried in order; the first one that decodes is used.
 CANDIDATE_ENCODINGS = ["utf-8-sig", "utf-8", "cp1252", "latin-1"]
 
 BLOCK_SIZE = 1024 * 1024
 TIMEOUT_SECONDS = 120.0
-FRIDAY = 4  # date.weekday()
 
 
 class SnapshotError(RuntimeError):
@@ -81,62 +74,23 @@ def verify_snapshot(raw_dir=RAW_DIR, lock=None):
 
 
 def fetch_snapshot(raw_dir=RAW_DIR, lock=None, client=None):
-    """Make the pinned archive available and return (path, action).
+    """Keep a pinned archive that matches the lock, else download and verify the mirror copy.
 
-    A file that already matches the lock is never replaced. A matching archive under the legacy
-    name is adopted; otherwise the mirror copy is downloaded and verified before it is moved in.
+    Returns (path, action). A matching file is never replaced.
     """
     raw_dir = Path(raw_dir)
     lock = lock or read_lock(raw_dir)
     archive = raw_dir / lock["file"]
     if matches_lock(archive, lock):
         return archive, "kept"
-    legacy = raw_dir / LEGACY_NAME
-    if matches_lock(legacy, lock):
-        os.replace(legacy, archive)
-        return archive, "adopted"
-    download(lock["mirror_url"], archive, client, expected=lock)
+    download(lock["mirror_url"], archive, lock, client)
     return archive, "downloaded"
 
 
-def fetch_live_snapshot(raw_dir=RAW_DIR, client=None, now=None):
-    """Download today's SITG export into live/<date>/ with its own manifest.
+def download(url, destination, expected, client=None):
+    """Stream url into a temporary file, check its size and SHA-256, then move it into place.
 
-    The pinned archive and the lock are left untouched; adopting a new snapshot means
-    editing the lock by hand.
-    """
-    raw_dir = Path(raw_dir)
-    lock = read_lock(raw_dir)
-    now = now or datetime.now(UTC)
-    url = lock["live_url"]
-    target = raw_dir / LIVE_DIR_NAME / now.date().isoformat()
-    archive = target / f"{Path(url).stem}_{now.date().isoformat()}.zip"
-
-    headers = download(url, archive, client)
-    with zipfile.ZipFile(archive) as opened:
-        members = sorted(opened.namelist())
-    manifest = {
-        "url": url,
-        "downloaded_at": now.isoformat(timespec="seconds"),
-        "last_modified": headers.get("last-modified"),
-        "file": archive.name,
-        "bytes": archive.stat().st_size,
-        "sha256": sha256_of(archive),
-        "members": members,
-        **read_date_info(archive),
-    }
-    manifest["matches_pin"] = manifest["sha256"] == lock["sha256"]
-    (target / LIVE_MANIFEST_NAME).write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
-    return archive, manifest
-
-
-def download(url, destination, client=None, expected=None):
-    """Stream url into a temporary file beside destination, check it, then move it into place.
-
-    `expected` holds `bytes` and `sha256`; on any failure the temporary file is removed and
-    destination is left as it was. Returns the response headers.
+    On any failure the temporary file is removed and destination is left as it was.
     """
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -155,7 +109,7 @@ def download(url, destination, client=None, expected=None):
                 digest.update(block)
                 out.write(block)
         size = temporary.stat().st_size
-        if expected and (size, digest.hexdigest()) != (expected["bytes"], expected["sha256"]):
+        if (size, digest.hexdigest()) != (expected["bytes"], expected["sha256"]):
             raise SnapshotError(
                 f"{url} returned {size} bytes with SHA-256 {digest.hexdigest()}; "
                 f"the lock expects {expected['bytes']} bytes with SHA-256 {expected['sha256']}."
@@ -168,7 +122,6 @@ def download(url, destination, client=None, expected=None):
         if temporary:
             temporary.unlink(missing_ok=True)
         raise
-    return response.headers
 
 
 def http_session(client=None):
@@ -176,37 +129,6 @@ def http_session(client=None):
     if client is not None:
         return contextlib.nullcontext(client)
     return httpx.Client(follow_redirects=True, timeout=TIMEOUT_SECONDS)
-
-
-def read_date_info(archive):
-    """SITG's own dating of an archive, from DOC/Informations_date.txt.
-
-    The file states the zip creation time and that the data was extracted "le vendredi soir
-    précédent" the download day; that Friday is derived here.
-    """
-    with zipfile.ZipFile(archive) as opened:
-        text = opened.read(DATE_INFO_MEMBER).decode("utf-8")
-    text = " ".join(text.split())
-    created = re.search(r"fichier \.zip téléchargé : (\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}:\d{2})", text)
-    extracted = re.search(
-        r"(extraites de la géodatabase du SITG le [^.]*?\d{2}\.\d{2}\.\d{4})", text
-    )
-    friday = re.search(r"le vendredi soir précédent le (\d{2}\.\d{2}\.\d{4})", text)
-    info = {"sitg_zip_created": None, "sitg_extracted": None, "sitg_extraction_note": None}
-    if created:
-        stamp = datetime.strptime(created.group(1), "%d.%m.%Y %H:%M:%S")
-        info["sitg_zip_created"] = stamp.isoformat()
-    if extracted:
-        info["sitg_extraction_note"] = extracted.group(1)
-    if friday:
-        reference = datetime.strptime(friday.group(1), "%d.%m.%Y").date()
-        info["sitg_extracted"] = previous_friday(reference).isoformat()
-    return info
-
-
-def previous_friday(day):
-    """The last Friday strictly before day."""
-    return day - timedelta(days=(day.weekday() - FRIDAY - 1) % 7 + 1)
 
 
 def detect_encoding(archive, member=CSV_MEMBER):
@@ -220,6 +142,13 @@ def detect_encoding(archive, member=CSV_MEMBER):
         except UnicodeDecodeError:
             continue
     raise ValueError("no candidate encoding decodes " + member)
+
+
+def parse_dates(values):
+    """Parse YYYYMMDD values, falling back to YYYYMMDDHHMMSS truncated to the day."""
+    dates = pd.to_datetime(values, format=DATE_FORMAT, errors="coerce")
+    timestamps = pd.to_datetime(values, format=TIMESTAMP_FORMAT, errors="coerce")
+    return dates.fillna(timestamps.dt.normalize())
 
 
 def load_source(raw_dir=RAW_DIR, member=CSV_MEMBER):

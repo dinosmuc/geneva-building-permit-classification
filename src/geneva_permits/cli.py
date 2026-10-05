@@ -16,12 +16,6 @@ def data_verify(args):
     print(f"verified: {path} (SHA-256 {source.read_lock()['sha256']})")
 
 
-def data_fetch_live(args):
-    archive, manifest = source.fetch_live_snapshot()
-    state = "identical to" if manifest["matches_pin"] else "differs from"
-    print(f"downloaded: {archive} (SHA-256 {manifest['sha256']}, {state} the pin)")
-
-
 def build_parser():
     parser = argparse.ArgumentParser(prog="permits", description=__doc__)
     areas = parser.add_subparsers(dest="area", required=True)
@@ -34,9 +28,6 @@ def build_parser():
     actions.add_parser("verify", help="check the pinned archive against the lock").set_defaults(
         handler=data_verify
     )
-    actions.add_parser(
-        "fetch-live", help="download today's SITG export into data/raw/live/ (never the pin)"
-    ).set_defaults(handler=data_fetch_live)
     return parser
 
 

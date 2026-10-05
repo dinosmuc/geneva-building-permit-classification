@@ -12,7 +12,6 @@ from geneva_permits import cli, source
     [
         (["data", "fetch"], cli.data_fetch),
         (["data", "verify"], cli.data_verify),
-        (["data", "fetch-live"], cli.data_fetch_live),
     ],
 )
 def test_commands_route_to_their_handlers(argv, handler):
