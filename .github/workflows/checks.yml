@@ -14,20 +14,9 @@ jobs:
 
       # --locked fails if uv.lock no longer matches pyproject.toml
       - run: uv sync --locked
+      # pinned SITG snapshot from the release mirror; the real-data tests read it
+      - run: uv run permits data fetch
 
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pytest -q
-
-  # Rebuilds the pinned SITG snapshot on a clean runner from the release mirror.
-  # Fails until the data-sitg-2026-09-27 release asset is published.
-  snapshot:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0  # no moving major tag is published
-
-      - run: uv sync --locked --no-dev
-
-      - run: uv run permits data fetch
-      - run: uv run permits data verify
