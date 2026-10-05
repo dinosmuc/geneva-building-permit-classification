@@ -15,7 +15,7 @@ from pathlib import Path
 import httpx
 import pandas as pd
 
-from geneva_permits.paths import RAW_DIR
+from geneva_permits.config import RAW_DIR
 
 LOCK_NAME = "source_manifest.json"
 CSV_MEMBER = "SIT_AUTOR_DOSSIER.csv"

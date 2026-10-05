@@ -12,14 +12,9 @@ __pycache__/
 # reference material, not part of this repository
 documentation/
 
-# corpora — SITG terms plus size; data/splits/ manifests stay tracked
-# data/raw keeps the pinned archive and live/<date>/ downloads local; source_manifest.json is
-# the tracked lock that pins the archive
+# the pinned archive is fetched with `uv run permits data fetch`; only its lock is tracked
 data/raw/*
-!data/raw/.gitkeep
 !data/raw/source_manifest.json
-data/prepared/*
-!data/prepared/.gitkeep
 
 # experiment outputs — checkpoints, raw API responses, tracking stores
 mlruns/

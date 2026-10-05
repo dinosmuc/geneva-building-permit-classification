@@ -53,7 +53,6 @@ evaluation:
 
 paths:
   raw: data/raw
-  prepared: data/prepared
   splits: data/splits
   results: results
   figures: results/figures
