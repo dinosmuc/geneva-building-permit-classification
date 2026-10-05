@@ -5,7 +5,7 @@ import os
 import pandas as pd
 import pytest
 
-from geneva_permits.config import RAW_DIR
+from geneva_permits.config import ANNOTATIONS_DIR, RAW_DIR
 from geneva_permits.prepare import (
     MISSING_DESCRIPTION,
     MISSING_OPERATION_CODE,
@@ -161,3 +161,10 @@ def test_operation_definitions_in_the_snapshot(raw):
     definitions = operation_definitions(raw)
     assert len(definitions) == 9
     assert definitions["EQU"].endswith(")")
+
+
+def test_review_rows_match_records_by_key(records):
+    review = pd.read_csv(ANNOTATIONS_DIR / "exploratory_review.csv", dtype="string")
+    matched = records.set_index("record_key").reindex(review["record_key"])
+    assert len(review) == 48
+    assert matched["DESCRIPTION"].tolist() == review["description"].tolist()
