@@ -1,12 +1,9 @@
-"""Field-level cleaning: placeholders, dates, the text grouping key and operation labels."""
+"""Field-level cleaning: placeholders, the text grouping key and operation labels."""
 
 import re
 import unicodedata
 
 import pandas as pd
-
-DATE_FORMAT = "%Y%m%d"  # DATE_DEPOT is stored as 20020226
-TIMESTAMP_FORMAT = "%Y%m%d%H%M%S"  # three filing dates carry a time of day
 
 # Sentinels the export uses instead of empty cells, one per field.
 MISSING_OPERATION_CODE = "--"
@@ -19,13 +16,6 @@ PLACEHOLDERS = {
     "STATUT": MISSING_STATUS,
     "OPERATION": MISSING_OPERATION_LABEL,
 }
-
-
-def parse_dates(values):
-    """Parse YYYYMMDD values, falling back to YYYYMMDDHHMMSS truncated to the day."""
-    dates = pd.to_datetime(values, format=DATE_FORMAT, errors="coerce")
-    timestamps = pd.to_datetime(values, format=TIMESTAMP_FORMAT, errors="coerce")
-    return dates.fillna(timestamps.dt.normalize())
 
 
 def is_missing(values, column):
