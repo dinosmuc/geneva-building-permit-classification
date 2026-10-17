@@ -1,11 +1,9 @@
 """The record table, on tiny synthetic frames and on the pinned snapshot."""
 
-import os
-
 import pandas as pd
 import pytest
 
-from geneva_permits.config import ANNOTATIONS_DIR, RAW_DIR
+from geneva_permits.config import ANNOTATIONS_DIR
 from geneva_permits.prepare import (
     MISSING_DESCRIPTION,
     MISSING_OPERATION_CODE,
@@ -15,7 +13,6 @@ from geneva_permits.prepare import (
     operation_definitions,
     prepare_records,
 )
-from geneva_permits.source import load_source, read_lock
 
 
 def source_frame(*rows):
@@ -126,21 +123,6 @@ def test_operation_definitions_raise_on_a_tie():
     raw = definitions_frame([("EQU", "travaux (publics"), ("EQU", "travaux (public)")])
     with pytest.raises(ValueError, match="EQU"):
         operation_definitions(raw)
-
-
-@pytest.fixture(scope="module")
-def raw():
-    """The pinned snapshot; skipped locally when not fetched, a failure in CI."""
-    if not (RAW_DIR / read_lock()["file"]).is_file():
-        if os.environ.get("CI"):
-            pytest.fail("pinned snapshot missing; CI must run `uv run permits data fetch` first")
-        pytest.skip("pinned snapshot not fetched; run `uv run permits data fetch`")
-    return load_source()
-
-
-@pytest.fixture(scope="module")
-def records(raw):
-    return prepare_records(raw)
 
 
 def test_record_status_counts_in_the_snapshot(records):

@@ -1,4 +1,4 @@
-"""Integrity gates. Split and annotation checks are added as the pipeline lands."""
+"""Integrity gates on config.yaml. Split gates are in test_splits.py; annotation gates follow."""
 
 from geneva_permits.config import load_config
 

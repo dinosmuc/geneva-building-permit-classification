@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from geneva_permits import source
+from geneva_permits import source, splits
 
 
 def data_fetch(args):
@@ -14,6 +14,11 @@ def data_fetch(args):
 def data_verify(args):
     path = source.verify_snapshot()
     print(f"verified: {path} (SHA-256 {source.read_lock()['sha256']})")
+
+
+def data_splits(args):
+    path, rows = splits.write_splits()
+    print(f"wrote {rows:,} retained rows: {path}")
 
 
 def build_parser():
@@ -28,6 +33,9 @@ def build_parser():
     actions.add_parser("verify", help="check the pinned archive against the lock").set_defaults(
         handler=data_verify
     )
+    actions.add_parser(
+        "splits", help="store the retained split in data/splits/splits.csv"
+    ).set_defaults(handler=data_splits)
     return parser
 
 

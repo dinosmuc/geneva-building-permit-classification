@@ -12,6 +12,7 @@ from geneva_permits import cli, source
     [
         (["data", "fetch"], cli.data_fetch),
         (["data", "verify"], cli.data_verify),
+        (["data", "splits"], cli.data_splits),
     ],
 )
 def test_commands_route_to_their_handlers(argv, handler):

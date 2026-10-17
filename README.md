@@ -16,6 +16,7 @@ and human review, not prediction of permit approval; a null result is a valid ou
 uv sync                     # Python 3.14 environment with the geneva_permits package
 uv run permits data fetch   # pinned SITG snapshot from the release mirror, SHA-256 checked
 uv run permits data verify  # re-check the archive against data/raw/source_manifest.json
+uv run permits data splits  # rewrite data/splits/splits.csv, only after a deliberate change
 ```
 
 Checks, as run in CI and by the pre-push hook (`git config core.hooksPath .githooks`):
