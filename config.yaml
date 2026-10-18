@@ -19,6 +19,10 @@ data:
 
 preprocessing:                        # variant B of the classical models: lemmas, no stop words
   spacy_model: fr_core_news_md        # 3.8.0; sm: "villa" -> "viller"; lg: +0.1 pt lemmas, 12x size
+  stop_words: spacy                   # spaCy 3.8.16 French list (507 words), unedited
+
+classical:                            # TF-IDF + LinearSVC, variants A and B
+  token_pattern: '(?u)\b\w+\b'        # keeps single characters: digits count buildings, e.g. "3 villas"
 
 models:
   primary:
