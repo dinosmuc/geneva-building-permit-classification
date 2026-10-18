@@ -17,5 +17,6 @@ def load_config():
 _PATHS = load_config()["paths"]
 RAW_DIR = PROJECT_ROOT / _PATHS["raw"]
 SPLITS_DIR = PROJECT_ROOT / _PATHS["splits"]
+PROCESSED_DIR = PROJECT_ROOT / _PATHS["processed"]
 FIGURES_DIR = PROJECT_ROOT / _PATHS["figures"]
 ANNOTATIONS_DIR = PROJECT_ROOT / _PATHS["annotations"]

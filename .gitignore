@@ -13,6 +13,9 @@ __pycache__/
 data/raw/*
 !data/raw/source_manifest.json
 
+# lemmatized texts, rebuilt with `uv run permits data preprocess`
+data/processed/
+
 # experiment outputs — checkpoints, raw API responses, tracking stores
 mlruns/
 mlartifacts/

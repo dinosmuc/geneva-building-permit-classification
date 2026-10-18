@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from geneva_permits import source, splits
+from geneva_permits import preprocess, source, splits
 
 
 def data_fetch(args):
@@ -21,6 +21,11 @@ def data_splits(args):
     print(f"wrote {rows:,} retained rows: {path}")
 
 
+def data_preprocess(args):
+    path, rows = preprocess.write_texts()
+    print(f"wrote {rows:,} lemmatized rows: {path}")
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="permits", description=__doc__)
     areas = parser.add_subparsers(dest="area", required=True)
@@ -36,6 +41,9 @@ def build_parser():
     actions.add_parser(
         "splits", help="store the retained split in data/splits/splits.csv"
     ).set_defaults(handler=data_splits)
+    actions.add_parser(
+        "preprocess", help="store the lemmatized texts in data/processed/texts.parquet"
+    ).set_defaults(handler=data_preprocess)
     return parser
 
 

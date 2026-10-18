@@ -17,6 +17,9 @@ data:
     fold_accents: true                # grouping only; model input keeps original text
     fold_punctuation: true
 
+preprocessing:                        # variant B of the classical models: lemmas, no stop words
+  spacy_model: fr_core_news_md        # 3.8.0; sm: "villa" -> "viller"; lg: +0.1 pt lemmas, 12x size
+
 models:
   primary:
     id: almanach/camembertav2-base
@@ -54,6 +57,7 @@ evaluation:
 paths:
   raw: data/raw
   splits: data/splits
+  processed: data/processed
   results: results
   figures: results/figures
   annotations: data/annotations

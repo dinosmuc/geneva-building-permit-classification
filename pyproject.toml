@@ -5,6 +5,7 @@ requires-python = ">=3.14,<3.15"
 dependencies = [
     "accelerate>=1.15.0",
     "datasets>=5.0.1",
+    "fr-core-news-md",
     "httpx>=0.28.1",
     "matplotlib>=3.11.2",
     "mlflow>=3.16.1",
@@ -16,6 +17,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "scikit-learn>=1.9.1",
     "seaborn>=0.13.2",
+    "spacy>=3.8.16",
     "tokenizers>=0.23.2",
     "torch>=2.14.0",
     "transformers>=5.17.0",
@@ -30,6 +32,9 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "geneva_permits"
+
+[tool.uv.sources]
+fr-core-news-md = { url = "https://github.com/explosion/spacy-models/releases/download/fr_core_news_md-3.8.0/fr_core_news_md-3.8.0-py3-none-any.whl" }
 
 [dependency-groups]
 dev = [
