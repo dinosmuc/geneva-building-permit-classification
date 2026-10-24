@@ -62,6 +62,7 @@ paths:
   raw: data/raw
   splits: data/splits
   processed: data/processed
+  mlruns: mlruns                      # MLflow store: mlflow.db and the artifacts of every run
   results: results
   figures: results/figures
   annotations: data/annotations
