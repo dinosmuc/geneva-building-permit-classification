@@ -14,6 +14,7 @@ from geneva_permits import cli, source
         (["data", "verify"], cli.data_verify),
         (["data", "splits"], cli.data_splits),
         (["data", "preprocess"], cli.data_preprocess),
+        (["train", "majority"], cli.train_majority),
     ],
 )
 def test_commands_route_to_their_handlers(argv, handler):

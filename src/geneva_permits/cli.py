@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from geneva_permits import preprocess, source, splits
+from geneva_permits import baseline, preprocess, source, splits
 
 
 def data_fetch(args):
@@ -26,6 +26,12 @@ def data_preprocess(args):
     print(f"wrote {rows:,} lemmatized rows: {path}")
 
 
+def train_majority(args):
+    scores = baseline.run_majority()
+    macro_f1, accuracy = scores["macro_f1"], scores["accuracy"]
+    print(f"majority on validation: macro-F1 {macro_f1:.3f}, accuracy {accuracy:.1%}")
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="permits", description=__doc__)
     areas = parser.add_subparsers(dest="area", required=True)
@@ -44,6 +50,12 @@ def build_parser():
     actions.add_parser(
         "preprocess", help="store the lemmatized texts in data/processed/texts.parquet"
     ).set_defaults(handler=data_preprocess)
+
+    train = areas.add_parser("train", help="fit on the training rows, score on the validation rows")
+    actions = train.add_subparsers(dest="action", required=True)
+    actions.add_parser("majority", help="the majority-class baseline").set_defaults(
+        handler=train_majority
+    )
     return parser
 
 
