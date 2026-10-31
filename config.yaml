@@ -60,14 +60,23 @@ teacher:
   temperature: null
   max_cost_eur: null
 
-training:
+training:                             # CamemBERTav2 fine-tuning through `permits train camembert`, 3 weightings x 3 seeds
   seeds: [13, 42, 73]
-  precision: fp16                     # measured: fp16 27.2, fp32 6.4, bf16 3.9 TFLOP/s
-  max_seq_length: null                # null = set by pilot, frozen before main runs
-  learning_rate: null
-  effective_batch_size: null
-  total_updates: null
-  conditions: [o_only, mixed, p_then_o, o_then_p]
+  precision: fp16                     # measured: fp16 27.2, fp32 6.4, bf16 3.9 TFLOP/s; CamemBERT 2.0 fine-tuned in FP32 (Table 7)
+  max_seq_length: 128                 # scope document §5; the longest training text has 55 tokens, validation 57;
+                                      # batches pad to their longest row
+  batch_size: 32                      # in both searched sets: CamemBERT 2.0 Table 7 (CLS) {32, 64}, DeBERTaV3 Table 11 {16, 32, 48, 64}
+  epochs: 6                           # CamemBERT 2.0 Table 7, CLS row; the final epoch is kept, no best-epoch pick;
+                                      # 6 x 962 steps = 5,772 updates
+  pilot_learning_rates: [3.0e-5, 5.0e-5, 7.0e-5]   # CamemBERT 2.0 Table 7, CLS row: one run each, seed 13, weighting none
+  learning_rate: null                 # frozen from the pilot (best final validation macro-F1) before the 9 main runs
+  schedule: linear                    # linear decay to zero: CamemBERT 2.0 Table 7, DeBERTaV3 Table 11
+  warmup_ratio: 0.1                   # CamemBERT 2.0 Table 7 {0, 0.1}: 577 steps, inside DeBERTaV3 Table 11 {50, ..., 1000}
+  weight_decay: 0.01                  # DeBERTaV3 Table 11 (fine-tuning)
+  adam_betas: [0.9, 0.999]            # DeBERTaV3 Table 11
+  adam_epsilon: 1.0e-6                # DeBERTaV3 Table 11
+  max_grad_norm: 1.0                  # DeBERTaV3 Table 11
+  conditions: [o_only, mixed, p_then_o, o_then_p]   # research extension
 
 evaluation:
   primary_metric: macro_f1

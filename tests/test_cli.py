@@ -17,6 +17,7 @@ from geneva_permits import cli, source
         (["train", "majority"], cli.train_majority),
         (["train", "linearsvc", "B"], cli.train_linearsvc),
         (["train", "curves"], cli.train_curves),
+        (["train", "camembert", "pilot"], cli.train_camembert),
     ],
 )
 def test_commands_route_to_their_handlers(argv, handler):

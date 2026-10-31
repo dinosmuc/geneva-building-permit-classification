@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from geneva_permits import baseline, classical, curves, preprocess, source, splits
+from geneva_permits import baseline, camembert, classical, curves, preprocess, source, splits
 
 
 def data_fetch(args):
@@ -47,6 +47,17 @@ def train_curves(args):
     print(best[["fraction", "seed", "train_rows", "C_log2", "ngram_range", "macro_f1"]].to_string())
 
 
+def train_camembert(args):
+    if args.stage == camembert.PILOT:
+        results = camembert.run_pilot()
+        best = results.loc[results["macro_f1"].idxmax()]
+        print(f"camembert pilot: best macro-F1 {best['macro_f1']:.3f} at {best['learning_rate']}")
+    else:
+        results = camembert.run_main()
+        print(f"camembert main: selected weighting {camembert.selected()}")
+    print(results.to_string())
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="permits", description=__doc__)
     areas = parser.add_subparsers(dest="area", required=True)
@@ -77,6 +88,13 @@ def build_parser():
     actions.add_parser(
         "curves", help="learning curves of the selected LinearSVC variant and weighting"
     ).set_defaults(handler=train_curves)
+    transformer = actions.add_parser("camembert", help="CamemBERTav2 fine-tuning")
+    transformer.add_argument(
+        "stage",
+        choices=[camembert.PILOT, camembert.MAIN],
+        help="pilot: learning rates; main: 9 runs",
+    )
+    transformer.set_defaults(handler=train_camembert)
     return parser
 
 
