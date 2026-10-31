@@ -38,7 +38,8 @@ SETTINGS = {
     "precision": "fp16",
     "max_seq_length": 4,
     "batch_size": 4,
-    "epochs": 2,
+    "epochs": 3,
+    "checkpoint": "best",
     "pilot_learning_rates": [1e-3, 1e-4],
     "learning_rate": 1e-3,
     "schedule": "linear",
@@ -80,6 +81,11 @@ def toy(monkeypatch, mlruns):
     monkeypatch.setattr(camembert, "load_model", toy_model)
 
 
+def val_macro_f1_history(run):
+    history = mlflow.MlflowClient().get_metric_history(run["run_id"], "val_macro_f1")
+    return [m.value for m in sorted(history, key=lambda m: m.step)]
+
+
 def test_encode_cuts_at_max_seq_length_and_maps_labels_to_class_positions():
     features = camembert.encode(toy_tokenizer(), TEXTS.head(2), max_seq_length=3)
     assert [f["input_ids"] for f in features] == [[1, 4, 2], [1, 5, 2]]
@@ -97,27 +103,49 @@ def test_loss_weights_follow_the_class_order():
         camembert.loss_weights(labels.head(3), "none", torch.device("cpu"))
 
 
-def test_main_runs_every_weighting_and_seed_and_stores_the_model(toy, mlruns):
+def test_keeps_the_earlier_epoch_on_a_tie_and_the_last_one_in_final_mode():
+    kept = {"epoch": 1, "macro_f1": 0.5}
+    assert camembert.keeps("best", 0.5, None)
+    assert not camembert.keeps("best", 0.5, kept)
+    assert camembert.keeps("best", 0.6, kept)
+    assert camembert.keeps("final", 0.1, kept)
+    with pytest.raises(ValueError, match="unknown checkpoint"):
+        camembert.keeps("patience", 0.5, kept)
+
+
+def test_main_keeps_the_best_epoch_and_stores_its_model(toy, mlruns):
     results = camembert.run_main(TEXTS, SETTINGS)
     assert list(results["weighting"]) == ["none", "medium", "full"]
     assert results["macro_f1"].between(0, 1).all()
     run = mlflow.search_runs(experiment_names=["selection"]).iloc[0]
     assert run["params.model"] == "camembert"
     assert run["params.stage"] == "main"
+    assert run["params.checkpoint"] == "best"
     assert run["params.precision"] == ("fp16" if torch.cuda.is_available() else "fp32")
-    client = mlflow.MlflowClient()
-    assert len(client.get_metric_history(run["run_id"], "val_macro_f1")) == SETTINGS["epochs"]
+    history = val_macro_f1_history(run)
+    assert len(history) == SETTINGS["epochs"]
+    assert run["metrics.kept_epoch"] == history.index(max(history)) + 1  # the earliest maximum
+    assert run["metrics.macro_f1"] == pytest.approx(max(history))
     assert any(mlruns.rglob("model/model.safetensors"))
     assert camembert.selected() in camembert.OPTIONS
 
 
-def test_pilot_runs_one_learning_rate_at_a_time_without_weighting(toy):
+def test_final_mode_keeps_the_last_epoch(toy):
+    camembert.run_main(TEXTS, SETTINGS | {"checkpoint": "final"})
+    run = mlflow.search_runs(experiment_names=["selection"]).iloc[0]
+    assert run["metrics.kept_epoch"] == SETTINGS["epochs"]
+    assert run["metrics.macro_f1"] == pytest.approx(val_macro_f1_history(run)[-1])
+
+
+def test_pilot_judges_each_learning_rate_by_its_best_epoch_and_stores_no_model(toy, mlruns):
     results = camembert.run_pilot(TEXTS, SETTINGS)
     assert list(results["learning_rate"]) == SETTINGS["pilot_learning_rates"]
     assert set(results["weighting"]) == {"none"}
     runs = mlflow.search_runs(experiment_names=["selection"])
     assert set(runs["params.stage"]) == {"pilot"}
     assert set(runs["params.seed"]) == {"13"}
+    assert runs["metrics.kept_epoch"].between(1, SETTINGS["epochs"]).all()
+    assert not any(mlruns.rglob("model.safetensors"))
 
 
 def test_main_refuses_an_unfrozen_learning_rate():

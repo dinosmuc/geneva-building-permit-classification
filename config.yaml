@@ -66,12 +66,16 @@ training:                             # CamemBERTav2 fine-tuning through `permit
   max_seq_length: 128                 # scope document §5; the longest training text has 55 tokens, validation 57;
                                       # batches pad to their longest row
   batch_size: 32                      # in both searched sets: CamemBERT 2.0 Table 7 (CLS) {32, 64}, DeBERTaV3 Table 11 {16, 32, 48, 64}
-  epochs: 6                           # CamemBERT 2.0 Table 7, CLS row; the final epoch is kept, no best-epoch pick;
-                                      # 6 x 962 steps = 5,772 updates
-  pilot_learning_rates: [3.0e-5, 5.0e-5, 7.0e-5]   # CamemBERT 2.0 Table 7, CLS row: one run each, seed 13, weighting none
-  learning_rate: null                 # frozen from the pilot (best final validation macro-F1) before the 9 main runs
+  epochs: 10                          # DeBERTaV3 Table 11 "Maximum Training Epochs" (He, Gao & Chen, ICLR 2023); every epoch
+                                      # is trained, 10 x 962 = 9,620 updates, the schedule runs over all of them
+  checkpoint: best                    # best: the epoch with the highest validation macro-F1, a tie keeps the earlier one, no
+                                      # patience (DeBERTaV3 selects on the dev set); final: the last epoch, the fixed-budget
+                                      # mode of the research extension. The kept epoch is logged per run
+  pilot_learning_rates: [3.0e-5, 5.0e-5, 7.0e-5]   # CamemBERT 2.0 Table 7, CLS row: one run each, seed 13, weighting none,
+                                      # judged by its best-epoch macro-F1; pilot weights are not stored
+  learning_rate: null                 # frozen from the pilot before the 9 main runs
   schedule: linear                    # linear decay to zero: CamemBERT 2.0 Table 7, DeBERTaV3 Table 11
-  warmup_ratio: 0.1                   # CamemBERT 2.0 Table 7 {0, 0.1}: 577 steps, inside DeBERTaV3 Table 11 {50, ..., 1000}
+  warmup_ratio: 0.1                   # CamemBERT 2.0 Table 7 {0, 0.1}: 962 steps, inside DeBERTaV3 Table 11 {50, ..., 1000}
   weight_decay: 0.01                  # DeBERTaV3 Table 11 (fine-tuning)
   adam_betas: [0.9, 0.999]            # DeBERTaV3 Table 11
   adam_epsilon: 1.0e-6                # DeBERTaV3 Table 11

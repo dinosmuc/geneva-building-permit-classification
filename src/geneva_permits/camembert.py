@@ -37,9 +37,18 @@ SPECIAL_TOKENS = {
     "unk_token": "[UNK]",
     "mask_token": "[MASK]",
 }
-PILOT = "pilot"  # learning-rate runs: seed 13, weighting none
-MAIN = "main"  # weighting options x seeds at the frozen learning rate
-LOGGED = ["max_seq_length", "batch_size", "epochs", "schedule", "warmup_ratio", "weight_decay"]
+PILOT = "pilot"  # learning-rate runs: seed 13, weighting none, no stored weights
+MAIN = "main"  # weighting options x seeds at the frozen learning rate, weights stored
+CHECKPOINTS = ["best", "final"]  # the epoch kept: best validation macro-F1, or the last one
+LOGGED = [
+    "max_seq_length",
+    "batch_size",
+    "epochs",
+    "checkpoint",
+    "schedule",
+    "warmup_ratio",
+    "weight_decay",
+]
 
 
 def load_tokenizer(model):
@@ -73,6 +82,17 @@ def loss_weights(labels, weighting, device):
     return torch.tensor(weights, dtype=torch.float32, device=device)
 
 
+def mixed_precision(device, precision):
+    """fp16 only on the GPU; the CPU, where the tests run, trains in fp32."""
+    return precision == "fp16" and device.type == "cuda"
+
+
+def autocast(device, precision):
+    """fp16 autocast when mixed_precision holds, otherwise a no-op."""
+    enabled = mixed_precision(device, precision)
+    return torch.autocast(device.type, dtype=torch.float16, enabled=enabled)
+
+
 def predict(model, loader, device, precision):
     """Predicted labels of every row in the loader."""
     model.eval()
@@ -85,19 +105,19 @@ def predict(model, loader, device, precision):
     return [CLASSES[i] for i in torch.cat(predictions).tolist()]
 
 
-def mixed_precision(device, precision):
-    """fp16 only on the GPU; the CPU, where the tests run, trains in fp32."""
-    return precision == "fp16" and device.type == "cuda"
-
-
-def autocast(device, precision):
-    """fp16 autocast when mixed_precision holds, otherwise a no-op."""
-    enabled = mixed_precision(device, precision)
-    return torch.autocast(device.type, dtype=torch.float16, enabled=enabled)
+def keeps(checkpoint, macro_f1, kept):
+    """Whether this epoch replaces the kept one: always for final, on a strict gain for best."""
+    if checkpoint not in CHECKPOINTS:
+        raise ValueError(f"unknown checkpoint {checkpoint!r}; expected one of {CHECKPOINTS}")
+    return checkpoint == "final" or kept is None or macro_f1 > kept["macro_f1"]
 
 
 def fit(model, tokenizer, train, validation, weighting, learning_rate, settings, device):
-    """Fine-tune for the configured epochs, logging validation scores per epoch."""
+    """Train for every epoch, scoring validation after each; the kept epoch and its predictions.
+
+    The schedule runs over all epochs. With checkpoint "best" the model ends in the state of
+    the epoch with the highest validation macro-F1 (a tie keeps the earlier one).
+    """
     collate = DataCollatorWithPadding(tokenizer)
     train_loader = DataLoader(
         encode(tokenizer, train, settings["max_seq_length"]),
@@ -125,6 +145,7 @@ def fit(model, tokenizer, train, validation, weighting, learning_rate, settings,
         device.type, enabled=mixed_precision(device, settings["precision"])
     )
     loss_fn = torch.nn.CrossEntropyLoss(weight=loss_weights(train["label"], weighting, device))
+    kept = None
     for epoch in range(1, settings["epochs"] + 1):
         model.train()
         total_loss = 0.0
@@ -152,11 +173,17 @@ def fit(model, tokenizer, train, validation, weighting, learning_rate, settings,
             },
             step=epoch,
         )
-    return predictions
+        if keeps(settings["checkpoint"], summary["macro_f1"], kept):
+            kept = {"epoch": epoch, "macro_f1": summary["macro_f1"], "predictions": predictions}
+            if settings["checkpoint"] == "best":
+                kept["state"] = {k: v.to("cpu", copy=True) for k, v in model.state_dict().items()}
+    if settings["checkpoint"] == "best":
+        model.load_state_dict(kept["state"])
+    return kept["epoch"], kept["predictions"]
 
 
 def run(stage, weighting, seed, learning_rate, train, validation, model_settings, settings):
-    """One logged run: fresh pinned model, fine-tuned and scored, its weights stored as artifact."""
+    """One logged run from a fresh pinned model; main runs also store the kept weights."""
     set_seed(seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = load_tokenizer(model_settings)
@@ -177,15 +204,17 @@ def run(stage, weighting, seed, learning_rate, train, validation, model_settings
             | {key: settings[key] for key in LOGGED}
         )
         start = time.time()
-        predictions = fit(
+        epoch, predictions = fit(
             model, tokenizer, train, validation, weighting, learning_rate, settings, device
         )
-        mlflow.log_metric("train_seconds", time.time() - start)
+        mlflow.log_metrics({"train_seconds": time.time() - start, "kept_epoch": epoch})
         summary = log_evaluation(validation["label"], predictions)
-        with tempfile.TemporaryDirectory() as directory:
-            model.save_pretrained(directory)
-            mlflow.log_artifacts(directory, "model")
-    return {"weighting": weighting, "seed": seed, "learning_rate": learning_rate} | summary
+        if stage == MAIN:
+            with tempfile.TemporaryDirectory() as directory:
+                model.save_pretrained(directory)
+                mlflow.log_artifacts(directory, "model")
+    point = {"weighting": weighting, "seed": seed, "learning_rate": learning_rate, "epoch": epoch}
+    return point | summary
 
 
 def run_points(stage, points, texts=None, settings=None):
