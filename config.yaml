@@ -26,6 +26,11 @@ classical:                            # TF-IDF + LinearSVC; variant A on the tex
   ngram_ranges: [[1, 1], [1, 2]]      # no trigrams: 76% (text) / 83% (lemmas) of trigram types occur in one training text
   C_log2: [-5, -3, -1, 1, 3, 5, 7, 9, 11, 13, 15]   # Hsu, Chang & Lin §3.2: C = 2^-5, 2^-3, ..., 2^15;
                                       # a best C at an edge extends the grid by two steps, documented in the report
+  dual: false                         # primal solver: deterministic, and it converged at C = 2^15 where the dual one
+                                      # had not after 20,000 iterations (measured on variant A, 31 Oct 2026)
+  max_iter: 10000                     # C = 2^15 needed 143 (unigrams) / 1,079 (uni+bigrams) iterations; room for the
+                                      # edge extension. n_iter and any ConvergenceWarning are logged per run, never silenced
+  random_state: 13                    # training.seeds[0]; only the dual solver is random, fixed anyway
 
 weighting:                            # per-row weights from the rows trained on: sample_weight (LinearSVC), loss weight (CamemBERT)
   options: [none, medium, full]       # 1 | sqrt(n / (K n_c)) rescaled to mean 1 | n / (K n_c);
@@ -77,7 +82,6 @@ evaluation:
   primary_partition: test_recent_text_disjoint   # research extension
   primary_contrast: [p_then_o, mixed]
   text_disjoint_against: [train_original, pool_accepted, validation]
-  min_class_support: null
 
 paths:
   raw: data/raw
