@@ -163,3 +163,23 @@ def test_best_weighting_averages_over_seeds_and_keeps_the_earlier_option_on_ties
     assert camembert.best_weighting(main_runs) == "none"  # 0.6 everywhere: none < medium < full
     main_runs.loc[0, "metrics.macro_f1"] = 0.9
     assert camembert.best_weighting(main_runs) == "full"
+
+
+def test_main_resumes_from_the_store(toy, mlruns, monkeypatch):
+    first = camembert.run_main(TEXTS, SETTINGS)
+    mlflow.start_run()  # a run interrupted before it finished
+    mlflow.log_params({"model": "camembert", "stage": "main", "weighting": "none", "seed": 42})
+    mlflow.end_run("FAILED")
+    calls = []
+
+    def fake_run(stage, weighting, seed, learning_rate, *_):
+        calls.append((weighting, seed))
+        return {"weighting": weighting, "seed": seed, "learning_rate": learning_rate, "epoch": 1}
+
+    monkeypatch.setattr(camembert, "run", fake_run)
+    again = camembert.run_main(TEXTS, SETTINGS | {"seeds": [13, 42]})
+    assert calls == [("none", 42), ("medium", 42), ("full", 42)]  # only the missing points
+    assert list(again["macro_f1"].iloc[:1]) == pytest.approx(list(first["macro_f1"].iloc[:1]))
+    assert (
+        len(mlflow.search_runs(experiment_names=["selection"])) == 3
+    )  # the interrupted one is gone

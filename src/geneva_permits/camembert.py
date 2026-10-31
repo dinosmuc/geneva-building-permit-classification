@@ -217,16 +217,40 @@ def run(stage, weighting, seed, learning_rate, train, validation, model_settings
     return point | summary
 
 
+def finished(stage):
+    """Points of this stage already finished in the store, with their logged results.
+
+    Runs the stage left unfinished, from an interrupted command, are deleted.
+    """
+    done = runs(SELECTION, f"params.model = 'camembert' and params.stage = '{stage}'")
+    if done.empty:
+        return {}
+    for run_id in done.loc[done["status"] != "FINISHED", "run_id"]:
+        mlflow.delete_run(run_id)
+    return {
+        (r["params.weighting"], int(r["params.seed"]), float(r["params.learning_rate"])): {
+            "weighting": r["params.weighting"],
+            "seed": int(r["params.seed"]),
+            "learning_rate": float(r["params.learning_rate"]),
+            "epoch": int(r["metrics.kept_epoch"]),
+            "macro_f1": r["metrics.macro_f1"],
+            "accuracy": r["metrics.accuracy"],
+        }
+        for _, r in done[done["status"] == "FINISHED"].iterrows()
+    }
+
+
 def run_points(stage, points, texts=None, settings=None):
-    """Run every (weighting, seed, learning_rate) point in the selection experiment."""
+    """Run every (weighting, seed, learning_rate) point not yet finished in the store."""
     config = load_config()
     settings = settings or config["training"]
     train, validation = train_validation(load_texts() if texts is None else texts)
     set_experiment(SELECTION)
     model_settings = config["models"]["primary"]
+    done = finished(stage)
     results = [
-        run(stage, weighting, seed, lr, train, validation, model_settings, settings)
-        for weighting, seed, lr in points
+        done.get(point) or run(stage, *point, train, validation, model_settings, settings)
+        for point in points
     ]
     return pd.DataFrame(results)
 
