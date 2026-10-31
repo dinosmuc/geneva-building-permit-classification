@@ -6,7 +6,7 @@ import pandas as pd
 import spacy
 
 from geneva_permits.config import PROCESSED_DIR, load_config
-from geneva_permits.splits import POOL, load_splits
+from geneva_permits.splits import POOL, TRAIN, VALIDATION, load_splits
 
 PROCESSED_PATH = PROCESSED_DIR / "texts.parquet"
 UNUSED_PIPES = ["parser", "ner"]  # lemmas are identical without them
@@ -57,3 +57,8 @@ def load_texts(path=PROCESSED_PATH):
     if texts.attrs != versions():
         raise ValueError(f"{path} was made with {texts.attrs}; rerun `permits data preprocess`")
     return texts
+
+
+def train_validation(texts):
+    """The training and validation rows."""
+    return (texts[texts["partition"].eq(p)] for p in [TRAIN, VALIDATION])

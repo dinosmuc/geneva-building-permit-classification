@@ -4,7 +4,7 @@ import mlflow
 import pandas as pd
 import pytest
 
-from geneva_permits.classical import edge_extension, grid, run_grid, select
+from geneva_permits.classical import edge_extension, grid, run_grid, select, selected
 
 TEXTS = pd.DataFrame(
     {
@@ -27,14 +27,6 @@ TEXTS = pd.DataFrame(
         ],
     }
 )
-SETTINGS = {
-    "token_pattern": r"(?u)\b\w+\b",
-    "ngram_ranges": [[1, 1]],
-    "C_log2": [0, 2],
-    "dual": False,
-    "max_iter": 100,
-    "random_state": 13,
-}
 
 
 def test_grid_order_breaks_ties_towards_none_small_c_and_short_ngrams():
@@ -50,8 +42,8 @@ def test_edge_extension_adds_two_steps_beyond_the_edge(best, extra):
     assert edge_extension(best, [-5, -3, -1, 1, 3, 5, 7, 9, 11, 13, 15]) == extra
 
 
-def test_run_grid_logs_every_point_and_extends_past_an_edge(mlruns):
-    results = run_grid("A", TEXTS, SETTINGS)
+def test_run_grid_logs_every_point_and_extends_past_an_edge(mlruns, classical_settings):
+    results = run_grid("A", TEXTS, classical_settings)
     base = results[~results["extension"]]
     assert len(base) == 3 * 2  # weightings x C values, one n-gram range
     assert len(results) in {6, 12}  # plus the two-step extension when the best C is on an edge
@@ -64,9 +56,15 @@ def test_run_grid_logs_every_point_and_extends_past_an_edge(mlruns):
     assert (runs["metrics.converged"] == 1).all()
 
 
-def test_a_convergence_warning_is_logged_not_silenced(mlruns, recwarn):
-    results = run_grid("A", TEXTS, SETTINGS | {"max_iter": 1})
+def test_a_convergence_warning_is_logged_not_silenced(mlruns, classical_settings):
+    results = run_grid("A", TEXTS, classical_settings | {"max_iter": 1})
     assert (results["n_iter"] == 1).all()
     runs = mlflow.search_runs(experiment_names=["selection"])
     assert (runs["metrics.converged"] == 0).all()
     assert runs["tags.convergence_warning"].str.contains("failed to converge").all()
+
+
+def test_selected_reads_the_best_from_the_store(mlruns, classical_settings):
+    results = run_grid("A", TEXTS, classical_settings)
+    mlflow.set_tracking_uri("")  # a fresh process has no store selected either
+    assert selected() == ("A", select(results)["weighting"])

@@ -11,9 +11,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
 
 from geneva_permits.config import load_config
-from geneva_permits.preprocess import load_texts
-from geneva_permits.splits import TRAIN, VALIDATION
-from geneva_permits.tracking import SELECTION, log_evaluation, set_experiment
+from geneva_permits.preprocess import load_texts, train_validation
+from geneva_permits.tracking import SELECTION, log_evaluation, runs, set_experiment
 from geneva_permits.weights import OPTIONS, row_weights
 
 VARIANTS = {"A": "text", "B": "lemmas"}  # the column each variant reads
@@ -41,9 +40,9 @@ def fit(pipeline, texts, labels, weighting):
     return pipeline["svm"].n_iter_, "; ".join(messages)
 
 
-def grid(c_log2s, ngram_ranges):
+def grid(c_log2s, ngram_ranges, weightings=OPTIONS):
     """Every (weighting, log2 C, n-gram range) point, in the order ties are broken."""
-    return list(itertools.product(OPTIONS, c_log2s, ngram_ranges))
+    return list(itertools.product(weightings, c_log2s, ngram_ranges))
 
 
 def edge_extension(best_c_log2, c_log2s):
@@ -63,7 +62,7 @@ def select(results):
     return results.loc[results["macro_f1"].idxmax()]
 
 
-def run_points(variant, points, train, validation, settings, extension=False):
+def run_points(variant, points, train, validation, settings, extra=None):
     """Fit and score each grid point on the validation rows, one MLflow run each."""
     column, rows = VARIANTS[variant], []
     for weighting, c_log2, ngram_range in points:
@@ -76,9 +75,9 @@ def run_points(variant, points, train, validation, settings, extension=False):
                 "weighting": weighting,
                 "C_log2": c_log2,
                 "ngram_range": "-".join(map(str, ngram_range)),
-                "extension": extension,
+                "extension": False,
                 "train_rows": len(train),
-            }
+            } | (extra or {})
             mlflow.log_params(params)
             mlflow.log_metrics({"n_iter": n_iter, "converged": n_iter < settings["max_iter"]})
             if warning:
@@ -88,17 +87,31 @@ def run_points(variant, points, train, validation, settings, extension=False):
     return pd.DataFrame(rows)
 
 
-def run_grid(variant, texts=None, settings=None):
-    """The whole grid for a variant, extended by two C steps when the best C sits on an edge."""
-    settings = settings or load_config()["classical"]
-    texts = load_texts() if texts is None else texts
-    train, validation = (texts[texts["partition"].eq(p)] for p in [TRAIN, VALIDATION])
-    set_experiment(SELECTION)
+def tune(variant, train, validation, settings, weightings=OPTIONS, extra=None):
+    """The grid over the weightings, extended by two C steps when the best C sits on an edge."""
     c_log2s, ngram_ranges = settings["C_log2"], settings["ngram_ranges"]
-    results = run_points(variant, grid(c_log2s, ngram_ranges), train, validation, settings)
-    extra = edge_extension(select(results)["C_log2"], c_log2s)
-    if extra:
-        points = grid(extra, ngram_ranges)
-        more = run_points(variant, points, train, validation, settings, extension=True)
+    points = grid(c_log2s, ngram_ranges, weightings)
+    results = run_points(variant, points, train, validation, settings, extra)
+    extra_c = edge_extension(select(results)["C_log2"], c_log2s)
+    if extra_c:
+        points = grid(extra_c, ngram_ranges, weightings)
+        extension = (extra or {}) | {"extension": True}
+        more = run_points(variant, points, train, validation, settings, extension)
         results = pd.concat([results, more], ignore_index=True)
     return results
+
+
+def run_grid(variant, texts=None, settings=None):
+    """The whole grid of a variant on the full training set, in the selection experiment."""
+    settings = settings or load_config()["classical"]
+    texts = load_texts() if texts is None else texts
+    train, validation = train_validation(texts)
+    set_experiment(SELECTION)
+    return tune(variant, train, validation, settings)
+
+
+def selected():
+    """Variant and weighting of the best LinearSVC run on validation; ties keep the earlier run."""
+    grid_runs = runs(SELECTION, "params.model = 'linearsvc'").sort_values("start_time")
+    best = grid_runs.loc[grid_runs["metrics.macro_f1"].idxmax()]
+    return best["params.variant"], best["params.weighting"]

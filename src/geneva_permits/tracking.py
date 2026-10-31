@@ -8,6 +8,7 @@ import mlflow
 from geneva_permits import config, evaluate
 
 SELECTION = "selection"  # experiment holding every run scored on the validation rows
+LEARNING_CURVES = "learning_curves"  # the selected classical model retuned on training subsets
 
 
 def set_experiment(name, root=None):
@@ -31,3 +32,9 @@ def log_evaluation(y_true, y_pred):
     mlflow.log_table(per_class.reset_index(names="class"), "per_class.json")
     mlflow.log_table(evaluate.confusion(y_true, y_pred).reset_index(names="true"), "confusion.json")
     return summary
+
+
+def runs(experiment, filter_string=""):
+    """The runs of an experiment in the project store, one row each with params.* and metrics.*."""
+    set_experiment(experiment)
+    return mlflow.search_runs(experiment_names=[experiment], filter_string=filter_string)

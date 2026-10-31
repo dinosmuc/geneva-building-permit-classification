@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from geneva_permits import baseline, classical, preprocess, source, splits
+from geneva_permits import baseline, classical, curves, preprocess, source, splits
 
 
 def data_fetch(args):
@@ -40,6 +40,13 @@ def train_linearsvc(args):
     )
 
 
+def train_curves(args):
+    variant, weighting = classical.selected()
+    best = curves.run_curves(variant, weighting)
+    print(f"learning curves of linearsvc {variant}, weighting {weighting}: best macro-F1 per draw")
+    print(best[["fraction", "seed", "train_rows", "C_log2", "ngram_range", "macro_f1"]].to_string())
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="permits", description=__doc__)
     areas = parser.add_subparsers(dest="area", required=True)
@@ -67,6 +74,9 @@ def build_parser():
     linearsvc = actions.add_parser("linearsvc", help="TF-IDF + LinearSVC over the whole grid")
     linearsvc.add_argument("variant", choices=classical.VARIANTS, help="A: text, B: lemmas")
     linearsvc.set_defaults(handler=train_linearsvc)
+    actions.add_parser(
+        "curves", help="learning curves of the selected LinearSVC variant and weighting"
+    ).set_defaults(handler=train_curves)
     return parser
 
 
