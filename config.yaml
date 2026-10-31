@@ -21,17 +21,32 @@ preprocessing:                        # variant B of the classical models: lemma
   spacy_model: fr_core_news_md        # 3.8.0; sm: "villa" -> "viller"; lg: +0.1 pt lemmas, 12x size
   stop_words: spacy                   # spaCy 3.8.16 French list (507 words), unedited
 
-classical:                            # TF-IDF + LinearSVC, variants A and B
+classical:                            # TF-IDF + LinearSVC; variant A on the text, variant B on the lemmas
   token_pattern: '(?u)\b\w+\b'        # keeps single characters: digits count buildings, e.g. "3 villas"
+  ngram_ranges: [[1, 1], [1, 2]]      # no trigrams: 76% (text) / 83% (lemmas) of trigram types occur in one training text
+  C_log2: [-5, -3, -1, 1, 3, 5, 7, 9, 11, 13, 15]   # Hsu, Chang & Lin §3.2: C = 2^-5, 2^-3, ..., 2^15;
+                                      # a best C at an edge extends the grid by two steps, documented in the report
+
+weighting:                            # per-row weights from the rows trained on: sample_weight (LinearSVC), loss weight (CamemBERT)
+  options: [none, medium, full]       # 1 | sqrt(n / (K n_c)) rescaled to mean 1 | n / (K n_c);
+                                      # Mahajan et al. 2018 compared natural, square-root and uniform sampling
 
 models:
   primary:
     id: almanach/camembertav2-base
     revision: 54cc91d6ac45a540c7e0faeb677f4dd8201d3d61
     params: 110617600
-  challenger:
-    id: jhu-clsp/mmBERT-base
-    revision: c5955035435e2bf121cde7f3c8863ef52ff35d82
+
+selection:                            # pre-registered: committed before the 2013 test is scored
+  partition: validation
+  metric: macro_f1
+  rule: best                          # the highest validation macro-F1 decides weighting, C and n-grams alike; no tie rule
+  camembert: weighting x seeds        # 3 options x 3 seeds = 9 runs; the option with the best mean macro-F1 over the seeds
+  report: all weighting options       # validation table for both models, with per-class scores
+  learning_curves:
+    fractions: [0.1, 0.3, 1.0]        # scope document §5
+    nested: true                      # 10% ⊂ 30% ⊂ 100%, one draw per seed in training.seeds
+    retune: [C, ngram_range]          # the selected weighting stays fixed; its weights are recomputed per subset
 
 teacher:
   provider: deepseek
@@ -51,12 +66,18 @@ training:
 
 evaluation:
   primary_metric: macro_f1
-  primary_partition: test_recent_text_disjoint
+  test_policy: once                   # test_historical (2013) is scored once, for every model together, after
+                                      # CamemBERT is selected; test_recent (2014-2026) stays untouched in the pilot phase
+  bootstrap:                          # test set only, none on validation
+    samples: 2000                     # Efron & Tibshirani 1993 use B = 2000 in their own examples (bootstrap R package)
+    cluster_by: dossier               # resample dossiers, the split's group key
+    interval: percentile
+    level: 0.95
+    paired: true                      # model differences from the same resamples (Berg-Kirkpatrick et al. 2012)
+  primary_partition: test_recent_text_disjoint   # research extension
   primary_contrast: [p_then_o, mixed]
   text_disjoint_against: [train_original, pool_accepted, validation]
   min_class_support: null
-  bootstrap_samples: null
-  bootstrap_cluster_by: dossier
 
 paths:
   raw: data/raw
