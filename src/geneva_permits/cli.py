@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from geneva_permits import baseline, preprocess, source, splits
+from geneva_permits import baseline, classical, preprocess, source, splits
 
 
 def data_fetch(args):
@@ -32,6 +32,14 @@ def train_majority(args):
     print(f"majority on validation: macro-F1 {macro_f1:.3f}, accuracy {accuracy:.1%}")
 
 
+def train_linearsvc(args):
+    best = classical.select(classical.run_grid(args.variant))
+    print(
+        f"linearsvc {args.variant} on validation: best macro-F1 {best['macro_f1']:.3f} at "
+        f"weighting={best['weighting']} C=2^{best['C_log2']} ngrams={best['ngram_range']}"
+    )
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="permits", description=__doc__)
     areas = parser.add_subparsers(dest="area", required=True)
@@ -56,6 +64,9 @@ def build_parser():
     actions.add_parser("majority", help="the majority-class baseline").set_defaults(
         handler=train_majority
     )
+    linearsvc = actions.add_parser("linearsvc", help="TF-IDF + LinearSVC over the whole grid")
+    linearsvc.add_argument("variant", choices=classical.VARIANTS, help="A: text, B: lemmas")
+    linearsvc.set_defaults(handler=train_linearsvc)
     return parser
 
 
