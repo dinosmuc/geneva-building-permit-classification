@@ -14,11 +14,12 @@ from geneva_permits.weights import OPTIONS
 
 SELECTION = "selection"  # experiment holding every run scored on the validation rows
 LEARNING_CURVES = "learning_curves"  # the selected settings of both models on training subsets
+TEST = "test"  # the one scoring of the 2013 partition: a run per model, plus the bootstrap run
 MODELS = ["majority", "linearsvc", "camembert"]  # params.model values, in report order
 
 
-def set_experiment(name, root=None):
-    """Select the experiment in the project store, creating it with its artifacts under root.
+def set_store(root=None):
+    """Point MLflow at the project store under root.
 
     MLflow otherwise writes the store and the artifacts into the working directory of
     whatever runs it, so a notebook and the CLI would each get their own.
@@ -26,6 +27,12 @@ def set_experiment(name, root=None):
     root = root or config.MLRUNS_DIR
     root.mkdir(parents=True, exist_ok=True)
     mlflow.set_tracking_uri(f"sqlite:///{root / 'mlflow.db'}")
+    return root
+
+
+def set_experiment(name, root=None):
+    """Select the experiment in the project store, creating it with its artifacts under root."""
+    root = set_store(root)
     if mlflow.get_experiment_by_name(name) is None:
         mlflow.create_experiment(name, artifact_location=str(root / name))
     return mlflow.set_experiment(name)
@@ -59,8 +66,12 @@ def log_evaluation(y_true, y_pred):
 
 
 def runs(experiment, filter_string=""):
-    """The runs of an experiment in the project store, one row each with params.* and metrics.*."""
-    set_experiment(experiment)
+    """The runs of an experiment in the project store, one row each with params.* and metrics.*.
+
+    Reading leaves the active experiment alone, so a run started afterwards lands where
+    set_experiment put it.
+    """
+    set_store()
     return mlflow.search_runs(experiment_names=[experiment], filter_string=filter_string)
 
 

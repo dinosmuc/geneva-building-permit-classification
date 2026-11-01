@@ -58,6 +58,15 @@ def test_runs_are_tagged_with_the_commit_and_the_snapshot(mlruns):
     assert run["tags.mlflow.runName"] == "probe"
 
 
+def test_reading_runs_leaves_the_active_experiment_alone(mlruns):
+    log(SELECTION, {"model": "majority"}, 0.1)
+    probe = set_experiment("probe")
+    assert runs(SELECTION)["params.model"].tolist() == ["majority"]
+    assert runs("missing").empty
+    with start_run():
+        assert mlflow.active_run().info.experiment_id == probe.experiment_id
+
+
 def test_overview_takes_the_best_grid_point_and_the_mean_over_seeds(mlruns):
     log(SELECTION, {"model": "majority", "label": "REN"}, 0.07)
     svc = {"model": "linearsvc", "variant": "A", "weighting": "none", "ngram_range": "1-2"}

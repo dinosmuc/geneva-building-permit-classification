@@ -3,7 +3,17 @@
 import argparse
 import sys
 
-from geneva_permits import baseline, camembert, classical, curves, preprocess, source, splits
+from geneva_permits import (
+    baseline,
+    camembert,
+    classical,
+    curves,
+    evaluate,
+    holdout,
+    preprocess,
+    source,
+    splits,
+)
 
 
 def data_fetch(args):
@@ -61,6 +71,13 @@ def train_camembert(args):
     print(results.to_string())
 
 
+def evaluate_test(args):
+    table = holdout.run_test()
+    level = evaluate.BOOTSTRAP["level"]
+    print(f"test partition: macro-F1 and accuracy per model with {level:.0%} percentile intervals")
+    print(table.round(3).to_string())
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="permits", description=__doc__)
     areas = parser.add_subparsers(dest="area", required=True)
@@ -98,6 +115,12 @@ def build_parser():
         help="pilot: learning rates; main: 9 runs; curves: the 10%% and 30%% draws",
     )
     transformer.set_defaults(handler=train_camembert)
+
+    evaluation = areas.add_parser("evaluate", help="the pre-registered test, scored once")
+    actions = evaluation.add_subparsers(dest="action", required=True)
+    actions.add_parser(
+        "test", help="every model of config evaluation.test on the 2013 rows, with the bootstrap"
+    ).set_defaults(handler=evaluate_test)
     return parser
 
 

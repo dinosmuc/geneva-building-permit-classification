@@ -103,6 +103,20 @@ evaluation:
     level: 0.95
     paired: true                      # model differences from the same resamples (Berg-Kirkpatrick et al. 2012)
     seed: 13                          # training.seeds[0], as classical.random_state
+  test:                               # pre-registered before any 2013 row is scored; `permits evaluate test` runs it once
+    partition: test_historical
+    groups: base_dossier              # the bootstrap's cluster key, from the split records
+    models:
+      majority: {}                    # the training majority label
+      linearsvc:                      # refit on the training rows at the best validation grid point (C, n-grams) of
+        - {variant: A, weighting: medium}   # each pair: the weighting selected on validation (medium for both variants)
+        - {variant: A, weighting: none}     # and its unweighted counterpart
+        - {variant: B, weighting: medium}   # the best LinearSVC overall
+        - {variant: B, weighting: none}
+      camembert: {weighting: none, seeds: [13, 42, 73]}   # the stored main models of the selected weighting; the
+                                      # model's score on each resample is the mean over the three seeds
+    primary_comparison: [camembert, linearsvc B medium]   # the paired difference the report leads with; names are
+                                      # "<model> <variant> <weighting>" for LinearSVC, "camembert" for the seed mean
   primary_partition: test_recent_text_disjoint   # research extension
   primary_contrast: [p_then_o, mixed]
   text_disjoint_against: [train_original, pool_accepted, validation]

@@ -62,13 +62,22 @@ def select(results):
     return results.loc[results["macro_f1"].idxmax()]
 
 
+def fit_point(variant, weighting, c_log2, ngram_range, train, settings):
+    """A pipeline fitted at one grid point on the training rows; the fit logged to the run."""
+    pipeline = make_pipeline(c_log2, ngram_range, settings)
+    n_iter, warning = fit(pipeline, train[VARIANTS[variant]], train["label"], weighting)
+    mlflow.log_metrics({"n_iter": n_iter, "converged": n_iter < settings["max_iter"]})
+    if warning:
+        mlflow.set_tag("convergence_warning", warning)
+    return pipeline, n_iter
+
+
 def run_points(variant, points, train, validation, settings, extra=None):
     """Fit and score each grid point on the validation rows, one MLflow run each."""
     column, rows = VARIANTS[variant], []
     for weighting, c_log2, ngram_range in points:
         with start_run(run_name=f"linearsvc-{variant}"):
-            pipeline = make_pipeline(c_log2, ngram_range, settings)
-            n_iter, warning = fit(pipeline, train[column], train["label"], weighting)
+            pipeline, n_iter = fit_point(variant, weighting, c_log2, ngram_range, train, settings)
             params = {
                 "model": "linearsvc",
                 "variant": variant,
@@ -79,9 +88,6 @@ def run_points(variant, points, train, validation, settings, extra=None):
                 "train_rows": len(train),
             } | (extra or {})
             mlflow.log_params(params)
-            mlflow.log_metrics({"n_iter": n_iter, "converged": n_iter < settings["max_iter"]})
-            if warning:
-                mlflow.set_tag("convergence_warning", warning)
             summary = log_evaluation(validation["label"], pipeline.predict(validation[column]))
             rows.append(params | summary | {"n_iter": n_iter})
     return pd.DataFrame(rows)

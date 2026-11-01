@@ -88,6 +88,16 @@ def encode(tokenizer, texts, max_seq_length):
     ]
 
 
+def batches(tokenizer, texts, settings, shuffle=False):
+    """The rows encoded and batched, padded to the longest row of each batch."""
+    return DataLoader(
+        encode(tokenizer, texts, settings["max_seq_length"]),
+        batch_size=settings["batch_size"],
+        shuffle=shuffle,
+        collate_fn=DataCollatorWithPadding(tokenizer),
+    )
+
+
 def loss_weights(labels, weighting, device):
     """The class weights of the rows trained on, in CLASSES order, for CrossEntropyLoss."""
     weights = class_weights(labels, weighting)[CLASSES].to_numpy()  # KeyError if a class is missing
@@ -130,18 +140,8 @@ def fit(model, tokenizer, train, validation, weighting, learning_rate, settings,
     The schedule runs over all epochs. With checkpoint "best" the model ends in the state of
     the epoch with the highest validation macro-F1 (a tie keeps the earlier one).
     """
-    collate = DataCollatorWithPadding(tokenizer)
-    train_loader = DataLoader(
-        encode(tokenizer, train, settings["max_seq_length"]),
-        batch_size=settings["batch_size"],
-        shuffle=True,
-        collate_fn=collate,
-    )
-    validation_loader = DataLoader(
-        encode(tokenizer, validation, settings["max_seq_length"]),
-        batch_size=settings["batch_size"],
-        collate_fn=collate,
-    )
+    train_loader = batches(tokenizer, train, settings, shuffle=True)
+    validation_loader = batches(tokenizer, validation, settings)
     steps = settings["epochs"] * len(train_loader)
     optimizer = torch.optim.AdamW(
         model.parameters(),
