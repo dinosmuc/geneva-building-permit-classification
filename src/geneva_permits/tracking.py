@@ -98,9 +98,15 @@ def histories(selected_runs, metric, by):
     return pd.DataFrame(columns).rename_axis(index="step", columns=by)
 
 
+def load_table(run_id, name):
+    """A table logged to a run, read from its own experiment whatever experiment is active."""
+    experiment_id = mlflow.get_run(run_id).info.experiment_id
+    return mlflow.MlflowClient().load_table(experiment_id, name, run_ids=[run_id])
+
+
 def table(run_id, name):
     """A logged table (per_class.json or confusion.json), indexed by its first column."""
-    frame = mlflow.load_table(name, run_ids=[run_id])
+    frame = load_table(run_id, name)
     return frame.set_index(frame.columns[0])
 
 
@@ -109,30 +115,67 @@ def mean_table(run_ids, name):
     return pd.concat([table(r, name) for r in run_ids]).groupby(level=0, sort=False).mean()
 
 
-def overview(selection):
-    """Validation scores per model, variant and weighting: the majority run, the best grid point of
-    each LinearSVC variant and weighting, the mean over seeds of each main CamemBERT weighting."""
-    keys = ["params.model", "params.variant", "params.weighting"]
-    settings = ["params.C_log2", "params.ngram_range", "params.seed"]
-    scores = [
-        f"metrics.{m}" for m in ["macro_f1", "accuracy", *(f"f1_{c}" for c in evaluate.CLASSES)]
-    ]
-    model = selection["params.model"]
-    linearsvc = best(selection[model.eq("linearsvc")], ["variant", "weighting"])
-    camembert = selection[model.eq("camembert") & selection["params.stage"].eq("main")]
-    camembert = (
-        camembert.sort_values("params.seed")
-        .groupby(keys, dropna=False, sort=False)
-        .agg({**dict.fromkeys(scores, "mean"), "params.seed": ", ".join})
-        .reset_index()
-    )
-    rows = pd.concat([selection[model.eq("majority")], linearsvc, camembert])[
-        keys + settings + scores
-    ]
+KEYS = ["params.model", "params.variant", "params.weighting"]
+SETTINGS = ["params.C_log2", "params.ngram_range", "params.seed"]
+SCORES = [f"metrics.{m}" for m in ["macro_f1", "accuracy", *(f"f1_{c}" for c in evaluate.CLASSES)]]
+
+
+def tidy(rows):
+    """Keys, settings and scores without the params./metrics. prefixes, in report order."""
+    rows = rows.reindex(columns=KEYS + SETTINGS + SCORES)  # a setting a model lacks stays NaN
     rows.columns = [c.split(".", 1)[1] for c in rows.columns]
     rows["model"] = pd.Categorical(rows["model"], MODELS)
     rows["weighting"] = pd.Categorical(rows["weighting"], OPTIONS)
-    return rows.sort_values(["model", "variant", "weighting"]).reset_index(drop=True)
+    return rows.sort_values(["model", "variant", "weighting", "seed"]).reset_index(drop=True)
+
+
+def summarize(model_runs):
+    """One row per model, variant and weighting: the majority run, the best LinearSVC grid point,
+    the CamemBERT mean over seeds (seed column: the seeds averaged)."""
+    model = model_runs["params.model"]
+    linearsvc = best(model_runs[model.eq("linearsvc")], ["variant", "weighting"])
+    camembert = (
+        model_runs[model.eq("camembert")]
+        .sort_values("params.seed")
+        .groupby(KEYS, dropna=False, sort=False)
+        .agg({**dict.fromkeys(SCORES, "mean"), "params.seed": ", ".join})
+        .reset_index()
+    )
+    return tidy(pd.concat([model_runs[model.eq("majority")], linearsvc, camembert]))
+
+
+def overview(selection):
+    """Validation scores per model, variant and weighting: the majority run, the best grid point of
+    each LinearSVC variant and weighting, the mean over seeds of each main CamemBERT weighting."""
+    model, stage = selection["params.model"], selection["params.stage"]
+    return summarize(selection[model.ne("camembert") | stage.eq("main")])
+
+
+def test_runs():
+    """The model runs of the test experiment, one row each, CamemBERT once per seed."""
+    scored = runs(TEST)
+    return tidy(scored[scored["params.model"].notna()])  # the bootstrap run carries no model
+
+
+def test_overview():
+    """Test scores per model, variant and weighting, CamemBERT as the mean over its seeds."""
+    scored = runs(TEST)
+    return summarize(scored[scored["params.model"].notna()])
+
+
+def bootstrap_run():
+    """The run holding the test's bootstrap tables."""
+    return runs(TEST, "attributes.run_name = 'bootstrap'").iloc[0]
+
+
+def bootstrap_table():
+    """The stored interval table: rows (model, metric), columns comparison, estimate, low, high."""
+    return load_table(bootstrap_run()["run_id"], "bootstrap.json").set_index(["model", "metric"])
+
+
+def test_predictions():
+    """Every model's test predictions beside the true labels, indexed by record key."""
+    return load_table(bootstrap_run()["run_id"], "predictions.json").set_index("record_key")
 
 
 def learning_curves():

@@ -11,6 +11,8 @@ from geneva_permits.source import read_lock
 from geneva_permits.tracking import (
     LEARNING_CURVES,
     SELECTION,
+    TEST,
+    bootstrap_table,
     histories,
     learning_curves,
     mean_table,
@@ -18,6 +20,9 @@ from geneva_permits.tracking import (
     runs,
     set_experiment,
     start_run,
+    test_overview,
+    test_predictions,
+    test_runs,
 )
 
 F1 = {f"f1_{c}": 0.0 for c in CLASSES}
@@ -95,6 +100,7 @@ def test_histories_and_mean_tables_line_runs_up(mlruns):
             per_class = pd.DataFrame({"class": ["AFF", "REN"], "f1": [seed / 100, 0.5]})
             mlflow.log_table(per_class, "per_class.json")
             ids.append(mlflow.active_run().info.run_id)
+    set_experiment("probe")  # reading must not depend on the active experiment
     wide = histories(runs(SELECTION), "val_macro_f1", ["weighting", "seed"])
     assert wide.index.tolist() == [1, 2]
     assert wide[("none", "13")].tolist() == [0.1, 0.3]
@@ -117,3 +123,37 @@ def test_learning_curves_join_both_models_with_the_full_camembert_set(mlruns):
         ["camembert", 1.0, 13, 30, 0.7],
         ["linearsvc", 0.1, 13, 3, 0.5],
     ]
+
+
+def test_the_test_experiment_reads_back_per_run_and_summarized(mlruns):
+    log(TEST, {"model": "majority", "label": "REN"}, 0.06)
+    log(TEST, {"model": "linearsvc", "variant": "B", "weighting": "medium", "C_log2": -3}, 0.62)
+    log(TEST, {"model": "camembert", "weighting": "none", "seed": 42}, 0.66)
+    log(TEST, {"model": "camembert", "weighting": "none", "seed": 13}, 0.68)
+    set_experiment(TEST)
+    with start_run(run_name="bootstrap"):
+        table = pd.DataFrame(
+            {
+                "model": ["camembert", "camembert - linearsvc B medium"],
+                "metric": ["macro_f1", "macro_f1"],
+                "comparison": ["", "primary"],
+                "estimate": [0.67, 0.05],
+                "low": [0.63, 0.03],
+                "high": [0.71, 0.08],
+            }
+        )
+        mlflow.log_table(table, "bootstrap.json")
+        predictions = pd.DataFrame({"record_key": ["k1", "k2"], "label": ["REN", "PI"]})
+        mlflow.log_table(predictions.assign(majority="REN"), "predictions.json")
+    set_experiment("probe")  # reading must not depend on the active experiment
+    per_run = test_runs()
+    assert per_run["model"].tolist() == ["majority", "linearsvc", "camembert", "camembert"]
+    assert per_run["seed"].tolist()[2:] == ["13", "42"]
+    summary = test_overview()
+    assert summary["model"].tolist() == ["majority", "linearsvc", "camembert"]
+    assert summary.loc[2, "macro_f1"] == pytest.approx(0.67)
+    assert summary.loc[2, "seed"] == "13, 42"
+    intervals = bootstrap_table()
+    assert intervals.loc[("camembert - linearsvc B medium", "macro_f1"), "comparison"] == "primary"
+    assert intervals.loc[("camembert", "macro_f1"), "high"] == pytest.approx(0.71)
+    assert test_predictions().loc["k2", "label"] == "PI"
