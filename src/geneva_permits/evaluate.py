@@ -39,7 +39,7 @@ def resample_weights(groups, samples, seed):
 
 
 def weighted_scores(y_true, y_pred, weights):
-    """Macro-F1 and accuracy of one prediction under each row of weights, one table row each.
+    """Macro-F1, accuracy and per-class F1 of one prediction under each row of weights.
 
     The same scores as `scores`, read off the weighted confusion matrix of every weighting at once.
     """
@@ -53,7 +53,8 @@ def weighted_scores(y_true, y_pred, weights):
     doubled = matrices.sum(axis=1) + matrices.sum(axis=2)  # 2 tp + fp + fn per class
     f1 = np.divide(2 * tp, doubled, out=np.zeros_like(tp), where=doubled > 0)  # ZERO_DIVISION
     accuracy = tp.sum(axis=1) / matrices.sum(axis=(1, 2))
-    return pd.DataFrame({"macro_f1": f1.mean(axis=1), "accuracy": accuracy})
+    per_class = {f"f1_{c}": f1[:, i] for i, c in enumerate(CLASSES)}
+    return pd.DataFrame({"macro_f1": f1.mean(axis=1), "accuracy": accuracy} | per_class)
 
 
 def mean_scores(y_true, prediction_sets, weights):
@@ -66,7 +67,7 @@ def mean_scores(y_true, prediction_sets, weights):
 
 
 def bootstrap(y_true, predictions, groups, pairs=(), settings=None):
-    """Percentile intervals of macro-F1 and accuracy per model, and of the paired differences
+    """Percentile intervals of every score per model, and of the paired differences
     between the models in pairs, from the same clustered resamples (config evaluation.bootstrap).
 
     predictions maps model names to their predictions on the rows, or to several prediction

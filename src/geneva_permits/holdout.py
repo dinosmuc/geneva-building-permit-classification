@@ -105,15 +105,23 @@ def run_test(texts=None, groups=None, config=None):
     """Score every model of the plan once on the test partition; the bootstrap table.
 
     Refuses a dirty tree, since the runs must carry a plain commit hash, and a second scoring
-    (config evaluation.test_policy: once).
+    once a bootstrap run has finished (config evaluation.test_policy: once). The partial runs
+    of an interrupted attempt are deleted and the rerun is tagged.
     """
     config = config or load_config()
     plan, settings = config["evaluation"]["test"], config["evaluation"]["bootstrap"]
     if git_commit().endswith("-dirty"):
         raise RuntimeError("uncommitted changes: the test runs must carry a plain commit hash")
     set_experiment(TEST)
-    if not runs(TEST).empty:
-        raise RuntimeError("the test partition was already scored (evaluation.test_policy: once)")
+    previous = runs(TEST)
+    if not previous.empty:
+        names = previous.get("tags.mlflow.runName", pd.Series("", index=previous.index))
+        if (names.eq("bootstrap") & previous["status"].eq("FINISHED")).any():
+            raise RuntimeError(
+                "the test partition was already scored (evaluation.test_policy: once)"
+            )
+        for run_id in previous["run_id"]:
+            mlflow.delete_run(run_id)
     texts = load_texts() if texts is None else texts
     train = texts[texts["partition"].eq(TRAIN)]
     test = texts[texts["partition"].eq(plan["partition"])]
@@ -127,9 +135,18 @@ def run_test(texts=None, groups=None, config=None):
     predictions["camembert"] = [
         score_camembert(weighting, seed, test, config) for seed in models["camembert"]["seeds"]
     ]
-    table = bootstrap(
-        test["label"], predictions, groups, [tuple(plan["primary_comparison"])], settings
-    )
+    comparisons = {
+        "primary": [plan["primary_comparison"]],
+        "secondary": plan["secondary_comparisons"],
+    }
+    pairs = [tuple(pair) for role in comparisons.values() for pair in role]
+    roles = {
+        " - ".join(pair): role
+        for role, pairs_of_role in comparisons.items()
+        for pair in pairs_of_role
+    }
+    table = bootstrap(test["label"], predictions, groups, pairs, settings)
+    table.insert(0, "comparison", table.index.get_level_values("model").map(roles).fillna(""))
     with start_run(run_name="bootstrap"):
         mlflow.log_params(
             settings | {"groups": plan["groups"], "distinct_groups": pd.Series(groups).nunique()}
@@ -138,6 +155,10 @@ def run_test(texts=None, groups=None, config=None):
         mlflow.log_table(
             prediction_table(test, predictions, models["camembert"]["seeds"]), "predictions.json"
         )
+    if not previous.empty:
+        note = f"after an interrupted attempt; {len(previous)} partial runs deleted"
+        for run_id in runs(TEST)["run_id"]:
+            mlflow.MlflowClient().set_tag(run_id, "rerun", note)
     return table
 
 

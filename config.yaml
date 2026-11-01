@@ -106,6 +106,7 @@ evaluation:
   test:                               # pre-registered before any 2013 row is scored; `permits evaluate test` runs it once
     partition: test_historical
     groups: base_dossier              # the bootstrap's cluster key, from the split records
+    metrics: [macro_f1, accuracy, per-class F1]   # each with its percentile interval from evaluation.bootstrap
     models:
       majority: {}                    # the training majority label
       linearsvc:                      # refit on the training rows at the best validation grid point (C, n-grams) of
@@ -117,6 +118,9 @@ evaluation:
                                       # model's score on each resample is the mean over the three seeds
     primary_comparison: [camembert, linearsvc B medium]   # the paired difference the report leads with; names are
                                       # "<model> <variant> <weighting>" for LinearSVC, "camembert" for the seed mean
+    secondary_comparisons:            # paired differences from the same resamples, reported as secondary
+      - [linearsvc B medium, linearsvc A medium]   # preprocessing: lemmas against text
+      - [linearsvc B medium, linearsvc B none]     # weighting: medium against none
   primary_partition: test_recent_text_disjoint   # research extension
   primary_contrast: [p_then_o, mixed]
   text_disjoint_against: [train_original, pool_accepted, validation]

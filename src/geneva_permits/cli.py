@@ -74,8 +74,10 @@ def train_camembert(args):
 def evaluate_test(args):
     table = holdout.run_test()
     level = evaluate.BOOTSTRAP["level"]
-    print(f"test partition: macro-F1 and accuracy per model with {level:.0%} percentile intervals")
-    print(table.round(3).to_string())
+    print(f"test partition: macro-F1 and accuracy with {level:.0%} percentile intervals")
+    headline = table.index.get_level_values("metric").isin(["macro_f1", "accuracy"])
+    print(table[headline].round(3).to_string())
+    print("per-class F1 intervals: table bootstrap.json of the bootstrap run")
 
 
 def build_parser():

@@ -33,6 +33,7 @@ PLAN = {
         "camembert": {"weighting": "none", "seeds": [13]},
     },
     "primary_comparison": ["camembert", "linearsvc B medium"],
+    "secondary_comparisons": [["linearsvc B medium", "linearsvc A none"]],
 }
 
 
@@ -62,8 +63,16 @@ def test_every_listed_model_is_scored_once_and_bootstrapped(store, mlruns):
         "linearsvc B medium",
         "camembert",
         "camembert - linearsvc B medium",
+        "linearsvc B medium - linearsvc A none",
     ]
     assert table["estimate"].between(-1, 1).all()
+    assert table.loc[("camembert - linearsvc B medium", "macro_f1"), "comparison"] == "primary"
+    assert (
+        table.loc[("linearsvc B medium - linearsvc A none", "macro_f1"), "comparison"]
+        == "secondary"
+    )
+    assert table.loc[("majority", "macro_f1"), "comparison"] == ""
+    assert "f1_AFF" in table.index.get_level_values("metric")
     test_runs = tracking.runs(tracking.TEST).set_index("tags.mlflow.runName")
     assert sorted(test_runs.index) == [
         "bootstrap",
@@ -106,6 +115,18 @@ def test_the_test_is_scored_once_and_only_from_a_clean_tree(store, monkeypatch):
     monkeypatch.setattr(holdout, "git_commit", lambda: "0" * 40 + "-dirty")
     with pytest.raises(RuntimeError, match="uncommitted changes"):
         holdout.run_test(TEXTS, GROUPS, store)
+
+
+def test_an_interrupted_attempt_is_deleted_and_the_rerun_tagged(store):
+    tracking.set_experiment(tracking.TEST)
+    with tracking.start_run(run_name="majority"):
+        mlflow.log_param("model", "majority")  # finished, but no bootstrap run followed
+    mlflow.start_run(run_name="linearsvc-A-none")
+    mlflow.end_run("FAILED")
+    holdout.run_test(TEXTS, GROUPS, store)
+    test_runs = tracking.runs(tracking.TEST)
+    assert len(test_runs) == 5
+    assert test_runs["tags.rerun"].eq("after an interrupted attempt; 2 partial runs deleted").all()
 
 
 def test_dossiers_come_from_the_split_records(monkeypatch):

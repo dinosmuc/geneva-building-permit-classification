@@ -57,10 +57,12 @@ def test_weighted_scores_match_scores_on_the_repeated_rows():
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         table = weighted_scores(TRUE, PRED, weights)
-    assert table.iloc[0].to_dict() == pytest.approx(scores(TRUE, PRED)[0])
     repeated = np.repeat(np.arange(7), weights[1])
-    expected = scores(np.array(TRUE)[repeated], np.array(PRED)[repeated])[0]
-    assert table.iloc[1].to_dict() == pytest.approx(expected)
+    expected = [scores(TRUE, PRED), scores(np.array(TRUE)[repeated], np.array(PRED)[repeated])]
+    for row, (summary, per_class) in zip(table.itertuples(index=False), expected, strict=True):
+        assert row._asdict() == pytest.approx(
+            summary | {f"f1_{c}": f1 for c, f1 in per_class["f1"].items()}
+        )
 
 
 def test_bootstrap_pairs_the_differences_on_the_same_resamples():
@@ -72,6 +74,7 @@ def test_bootstrap_pairs_the_differences_on_the_same_resamples():
     assert worse["estimate"] == pytest.approx(5 / 7)
     assert worse["low"] <= worse["estimate"] <= worse["high"]
     assert table.loc[("worse", "macro_f1"), "estimate"] == scores(TRUE, PRED)[0]["macro_f1"]
+    assert table.loc[("worse", "f1_AFF"), "estimate"] == pytest.approx(2 / 3)  # tp 1, fp 1
     # perfect scores 1 on every resample, so the paired difference is 1 - worse on each of them
     difference = table.loc[("perfect - worse", "accuracy")]
     assert difference["estimate"] == pytest.approx(1 - 5 / 7)
