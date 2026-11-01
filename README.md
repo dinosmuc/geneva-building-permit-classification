@@ -45,19 +45,24 @@ Records from 2014 onwards are reserved for the extension. No dossier spans two p
 normalized text reaches an evaluation partition from training. `01_data_exploration.ipynb` holds
 the full audit; `02_preprocessing.ipynb` runs and checks the lemmatization.
 
-## Validation results
+## Results
 
 ![Validation macro-F1 against training size](results/figures/learning_curves.png)
 
-CamemBERTav2 leads TF-IDF + LinearSVC by 3 to 4 points of macro-F1 at every training size:
-0.703 against 0.661 on the full set, with the majority baseline at 0.073. Per-row class weighting
-did not help either model.
+On the validation years (2011–2012) CamemBERTav2 leads TF-IDF + LinearSVC by 3 to 4 points of
+macro-F1 at every training size, 0.703 against 0.661 on the full training set. Per-row class
+weighting did not help either model. `03_validation_results.ipynb` has every validation table and
+figure.
 
-![Confusion matrices on validation](results/figures/confusion_validation.png)
+![Test scores with 95% bootstrap intervals](results/figures/test_intervals.png)
 
-AFF, the rarest class, is the weakest for both models, and the large confusions, PI with REN and
-PI with EQU, are shared. `03_validation_results.ipynb` has every table and figure; the 2013 test
-with its bootstrap intervals will be in `04_test_results.ipynb`.
+On the 2013 test, scored once with every setting fixed beforehand, CamemBERTav2 reaches macro-F1
+0.672 (mean of three seeds) against 0.617 for the selected LinearSVC. The paired difference over
+2,000 dossier-clustered resamples is 5.5 points, 95% interval 2.6 to 8.3; in accuracy 3.3 points,
+1.8 to 5.0. Neither lemmatization nor weighting makes a measurable difference to LinearSVC on the
+test. AFF, the rarest class with 12 test rows, stays the weakest for both models, and the large
+confusions, PI with REN and PI with EQU, are shared. `04_test_results.ipynb` holds the per-class
+intervals, the confusion matrices and the error analysis.
 
 ## Checks
 
