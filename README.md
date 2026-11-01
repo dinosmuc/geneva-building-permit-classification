@@ -21,6 +21,7 @@ uv run permits train camembert pilot  # learning-rate pilot; freeze training.lea
 uv run permits train camembert main   # weighting options x seeds, models stored
 uv run permits train camembert curves # CamemBERTav2 learning curves on the same draws
 uv run permits evaluate test          # the 2013 test, once, from a committed tree
+uv run permits predict "<description>"   # classify new descriptions with the stored model
 uv run mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db   # browse the runs
 ```
 
@@ -63,6 +64,27 @@ On the 2013 test, scored once with every setting fixed beforehand, CamemBERTav2 
 test. AFF, the rarest class with 12 test rows, stays the weakest for both models, and the large
 confusions, PI with REN and PI with EQU, are shared. `04_test_results.ipynb` holds the per-class
 intervals, the confusion matrices and the error analysis.
+
+## Predict
+
+`permits predict` classifies new descriptions with the stored CamemBERTav2 model of seed 13, the
+seed with the best validation and test scores, and prints the softmax score of every class. Four
+hand-written examples:
+
+```
+$ uv run permits predict "construction d'une villa individuelle avec garage et piscine" \
+    "rénovation de la toiture et remplacement des fenêtres" \
+    "changement d'affectation de bureaux en logements" \
+    "aménagement d'un trottoir et de places de stationnement"
+"construction d'une villa individuelle avec garage et piscine" -> VIL
+   VIL 97.8%  NOU 2.0%  AGV 0.1%  AGR 0.0%  AFF 0.0%  PI 0.0%  REN 0.0%  EQU 0.0%
+"rénovation de la toiture et remplacement des fenêtres" -> REN
+   REN 97.8%  PI 1.9%  AGR 0.1%  AGV 0.1%  EQU 0.0%  AFF 0.0%  NOU 0.0%  VIL 0.0%
+"changement d'affectation de bureaux en logements" -> AFF
+   AFF 84.5%  REN 12.2%  AGR 1.0%  AGV 0.8%  NOU 0.6%  VIL 0.5%  PI 0.2%  EQU 0.2%
+"aménagement d'un trottoir et de places de stationnement" -> EQU
+   EQU 99.2%  PI 0.6%  REN 0.1%  NOU 0.0%  VIL 0.0%  AGR 0.0%  AGV 0.0%  AFF 0.0%
+```
 
 ## Checks
 

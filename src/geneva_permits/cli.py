@@ -10,6 +10,7 @@ from geneva_permits import (
     curves,
     evaluate,
     holdout,
+    predict,
     preprocess,
     source,
     splits,
@@ -80,6 +81,14 @@ def evaluate_test(args):
     print("per-class F1 intervals: table bootstrap.json of the bootstrap run")
 
 
+def predict_description(args):
+    table = predict.classify(args.description)
+    for text, row in table.iterrows():
+        scores = row.drop("predicted").astype(float).sort_values(ascending=False)
+        print(f'"{text}" -> {row["predicted"]}')
+        print("   " + "  ".join(f"{label} {score:.1%}" for label, score in scores.items()))
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="permits", description=__doc__)
     areas = parser.add_subparsers(dest="area", required=True)
@@ -123,6 +132,10 @@ def build_parser():
     actions.add_parser(
         "test", help="every model of config evaluation.test on the 2013 rows, with the bootstrap"
     ).set_defaults(handler=evaluate_test)
+
+    prediction = areas.add_parser("predict", help="classify descriptions with the stored CamemBERT")
+    prediction.add_argument("description", nargs="+", help="one or more descriptions, quoted")
+    prediction.set_defaults(handler=predict_description)
     return parser
 
 

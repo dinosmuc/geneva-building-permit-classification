@@ -5,12 +5,9 @@ CamemBERT models are the stored main runs. Each model gets one run in the test e
 a bootstrap run holds every model's predictions and the interval table.
 """
 
-import tempfile
-
 import mlflow
 import pandas as pd
 import torch
-from transformers import AutoModelForSequenceClassification
 
 from geneva_permits import camembert, classical
 from geneva_permits.baseline import majority_label
@@ -76,19 +73,10 @@ def score_linearsvc(spec, train, test, settings):
 
 def score_camembert(weighting, seed, test, config):
     """The stored main model of a weighting and seed, scored on the test rows."""
-    main = runs(
-        SELECTION,
-        f"params.model = 'camembert' and params.stage = 'main' "
-        f"and params.weighting = '{weighting}' and params.seed = '{seed}'",
-    )
-    (run_id,) = main["run_id"]
+    run_id = camembert.stored_run(weighting, seed)
     settings = config["training"]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    with tempfile.TemporaryDirectory() as directory:
-        path = mlflow.artifacts.download_artifacts(
-            run_id=run_id, artifact_path="model", dst_path=directory
-        )
-        model = AutoModelForSequenceClassification.from_pretrained(path).to(device)
+    model = camembert.load_stored(run_id).to(device)
     loader = camembert.batches(
         camembert.load_tokenizer(config["models"]["primary"]), test, settings
     )

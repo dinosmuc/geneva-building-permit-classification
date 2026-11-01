@@ -79,13 +79,14 @@ def load_model(model):
 def encode(tokenizer, texts, max_seq_length):
     """One feature dict per row: token ids cut at max_seq_length, label id = position in CLASSES."""
     encoded = tokenizer(texts["text"].tolist(), truncation=True, max_length=max_seq_length)
-    labels = texts["label"].map(CLASSES.index).tolist()
-    return [
-        {"input_ids": ids, "attention_mask": mask, "labels": label}
-        for ids, mask, label in zip(
-            encoded["input_ids"], encoded["attention_mask"], labels, strict=True
-        )
+    features = [
+        {"input_ids": ids, "attention_mask": mask}
+        for ids, mask in zip(encoded["input_ids"], encoded["attention_mask"], strict=True)
     ]
+    if "label" in texts:  # new descriptions to classify carry none
+        for feature, label in zip(features, texts["label"].map(CLASSES.index), strict=True):
+            feature["labels"] = label
+    return features
 
 
 def batches(tokenizer, texts, settings, shuffle=False):
@@ -115,16 +116,41 @@ def autocast(device, precision):
     return torch.autocast(device.type, dtype=torch.float16, enabled=enabled)
 
 
-def predict(model, loader, device, precision):
-    """Predicted labels of every row in the loader."""
+def logits(model, loader, device, precision):
+    """The logits of every row in the loader, stacked on the CPU."""
     model.eval()
-    predictions = []
+    outputs = []
     with torch.no_grad():
         for batch in loader:
             batch = {k: v.to(device) for k, v in batch.items() if k != "labels"}
             with autocast(device, precision):
-                predictions.append(model(**batch).logits.argmax(-1).cpu())
-    return [CLASSES[i] for i in torch.cat(predictions).tolist()]
+                outputs.append(model(**batch).logits.float().cpu())
+    return torch.cat(outputs)
+
+
+def predict(model, loader, device, precision):
+    """Predicted labels of every row in the loader."""
+    return [CLASSES[i] for i in logits(model, loader, device, precision).argmax(-1).tolist()]
+
+
+def stored_run(weighting, seed):
+    """The id of the main run that stored the model of a weighting and seed."""
+    main = runs(
+        SELECTION,
+        f"params.model = 'camembert' and params.stage = '{MAIN}' "
+        f"and params.weighting = '{weighting}' and params.seed = '{seed}'",
+    )
+    (run_id,) = main["run_id"]
+    return run_id
+
+
+def load_stored(run_id):
+    """The model a main run stored, loaded from the store's artifacts."""
+    with tempfile.TemporaryDirectory() as directory:
+        path = mlflow.artifacts.download_artifacts(
+            run_id=run_id, artifact_path="model", dst_path=directory
+        )
+        return AutoModelForSequenceClassification.from_pretrained(path)
 
 
 def keeps(checkpoint, macro_f1, kept):

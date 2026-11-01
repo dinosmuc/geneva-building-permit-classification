@@ -125,6 +125,10 @@ evaluation:
   primary_contrast: [p_then_o, mixed]
   text_disjoint_against: [train_original, pool_accepted, validation]
 
+prediction:                           # `permits predict "<description>"`: the stored main model used for new texts
+  weighting: none                     # the selected weighting
+  seed: 13                            # the seed with the best validation (0.714) and test (0.683) macro-F1
+
 paths:
   raw: data/raw
   splits: data/splits
