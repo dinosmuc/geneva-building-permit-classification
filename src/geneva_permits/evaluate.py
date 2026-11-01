@@ -44,8 +44,9 @@ def weighted_scores(y_true, y_pred, weights):
     The same scores as `scores`, read off the weighted confusion matrix of every weighting at once.
     """
     k = len(CLASSES)
-    true = pd.Categorical(y_true, categories=CLASSES).codes
-    pred = pd.Categorical(y_pred, categories=CLASSES).codes
+    true, pred = (pd.Index(CLASSES).get_indexer(np.asarray(y)) for y in [y_true, y_pred])
+    if (true < 0).any() or (pred < 0).any():  # -1: not one of the classes
+        raise ValueError(f"labels outside the eight classes {CLASSES}")
     cells = np.eye(k * k)[true * k + pred]  # the confusion cell of each row, one-hot
     matrices = (np.asarray(weights) @ cells).reshape(-1, k, k)
     tp = np.diagonal(matrices, axis1=1, axis2=2)
@@ -55,19 +56,27 @@ def weighted_scores(y_true, y_pred, weights):
     return pd.DataFrame({"macro_f1": f1.mean(axis=1), "accuracy": accuracy})
 
 
+def mean_scores(y_true, prediction_sets, weights):
+    """weighted_scores averaged over the prediction sets of one model, resample by resample.
+
+    One prediction set is a single sequence; CamemBERT's seeds are a list of three of them.
+    """
+    sets = np.atleast_2d(np.asarray(prediction_sets))
+    return sum(weighted_scores(y_true, s, weights) for s in sets) / len(sets)
+
+
 def bootstrap(y_true, predictions, groups, pairs=(), settings=None):
     """Percentile intervals of macro-F1 and accuracy per model, and of the paired differences
     between the models in pairs, from the same clustered resamples (config evaluation.bootstrap).
 
-    predictions maps model names to their predictions on the rows; pairs are (model, reference)
+    predictions maps model names to their predictions on the rows, or to several prediction
+    sets (one per seed) scored as their mean within each resample; pairs are (model, reference)
     names. Rows per (model, metric), columns estimate (every row once), low and high.
     """
     settings = settings or BOOTSTRAP
     weights = resample_weights(groups, settings["samples"], settings["seed"])
     weights = np.vstack([np.ones(len(groups)), weights])  # row 0: the unweighted estimate
-    scored = {
-        model: weighted_scores(y_true, y_pred, weights) for model, y_pred in predictions.items()
-    }
+    scored = {model: mean_scores(y_true, sets, weights) for model, sets in predictions.items()}
     scored |= {
         f"{model} - {reference}": scored[model] - scored[reference] for model, reference in pairs
     }

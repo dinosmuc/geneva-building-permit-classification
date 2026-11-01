@@ -11,6 +11,7 @@ from geneva_permits.evaluate import (
     CLASSES,
     bootstrap,
     confusion,
+    mean_scores,
     resample_weights,
     scores,
     weighted_scores,
@@ -77,3 +78,23 @@ def test_bootstrap_pairs_the_differences_on_the_same_resamples():
     assert difference["low"] == pytest.approx(1 - worse["high"])
     assert difference["high"] == pytest.approx(1 - worse["low"])
     assert BOOTSTRAP["samples"] == 2000 and BOOTSTRAP["level"] == 0.95
+
+
+def test_weighted_scores_reject_labels_outside_the_classes():
+    with pytest.raises(ValueError, match="outside the eight classes"):
+        weighted_scores(TRUE, ["XYZ", *PRED[1:]], np.ones((1, 7)))
+    with pytest.raises(ValueError, match="outside the eight classes"):
+        weighted_scores(["AM", *TRUE[1:]], PRED, np.ones((1, 7)))
+
+
+def test_several_prediction_sets_score_as_their_mean_on_every_resample():
+    weights = np.ones((1, 7))
+    assert mean_scores(TRUE, PRED, weights).equals(weighted_scores(TRUE, PRED, weights))
+    both = mean_scores(TRUE, [TRUE, PRED], weights)
+    assert both["accuracy"].tolist() == pytest.approx([(1 + 5 / 7) / 2])
+    table = bootstrap(TRUE, {"one": PRED, "both": [TRUE, PRED]}, GROUPS)
+    one, both = table.loc[("one", "accuracy")], table.loc[("both", "accuracy")]
+    # the perfect set scores 1 on every resample, so "both" is (1 + one) / 2 on each of them
+    assert both["estimate"] == pytest.approx((1 + 5 / 7) / 2)
+    assert both["low"] == pytest.approx((1 + one["low"]) / 2)
+    assert both["high"] == pytest.approx((1 + one["high"]) / 2)
