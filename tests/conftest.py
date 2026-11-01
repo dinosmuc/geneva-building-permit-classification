@@ -24,9 +24,9 @@ def records(raw):
     return prepare_records(raw)
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def mlruns(tmp_path, monkeypatch):
-    """A throwaway MLflow store, so tests never touch the project's mlruns/."""
+    """A throwaway MLflow store for every test, so none reads or writes the project's mlruns/."""
     monkeypatch.setattr(config, "MLRUNS_DIR", tmp_path / "mlruns")
     return tmp_path / "mlruns"
 

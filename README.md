@@ -67,9 +67,9 @@ intervals, the confusion matrices and the error analysis.
 
 ## Predict
 
-`permits predict` classifies new descriptions with the stored CamemBERTav2 model of seed 13, the
-seed with the best validation and test scores, and prints the softmax score of every class. Four
-hand-written examples:
+`permits predict` classifies new descriptions with the stored CamemBERTav2 model of seed 13,
+chosen by its validation score (0.714); it also scored best on the test. The command prints the
+softmax score of every class. Four hand-written examples:
 
 ```
 $ uv run permits predict "construction d'une villa individuelle avec garage et piscine" \

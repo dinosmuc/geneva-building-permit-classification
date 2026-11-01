@@ -151,13 +151,14 @@ def overview(selection):
     return summarize(selection[model.ne("camembert") | stage.eq("main")])
 
 
-def test_runs():
+# holdout_*, not test_*: pytest collects test_* functions that a test module imports
+def holdout_runs():
     """The model runs of the test experiment, one row each, CamemBERT once per seed."""
     scored = runs(TEST)
     return tidy(scored[scored["params.model"].notna()])  # the bootstrap run carries no model
 
 
-def test_overview():
+def holdout_overview():
     """Test scores per model, variant and weighting, CamemBERT as the mean over its seeds."""
     scored = runs(TEST)
     return summarize(scored[scored["params.model"].notna()])
@@ -190,7 +191,7 @@ def bootstrap_table():
     return load_table(bootstrap_run()["run_id"], "bootstrap.json").set_index(["model", "metric"])
 
 
-def test_predictions():
+def holdout_predictions():
     """Every model's test predictions beside the true labels, indexed by record key."""
     return load_table(bootstrap_run()["run_id"], "predictions.json").set_index("record_key")
 

@@ -15,15 +15,15 @@ from geneva_permits.tracking import (
     bootstrap_table,
     camembert_seeds,
     histories,
+    holdout_overview,
+    holdout_predictions,
+    holdout_runs,
     learning_curves,
     mean_table,
     overview,
     runs,
     set_experiment,
     start_run,
-    test_overview,
-    test_predictions,
-    test_runs,
 )
 
 F1 = {f"f1_{c}": 0.0 for c in CLASSES}
@@ -147,17 +147,17 @@ def test_the_test_experiment_reads_back_per_run_and_summarized(mlruns):
         predictions = pd.DataFrame({"record_key": ["k1", "k2"], "label": ["REN", "PI"]})
         mlflow.log_table(predictions.assign(majority="REN"), "predictions.json")
     set_experiment("probe")  # reading must not depend on the active experiment
-    per_run = test_runs()
+    per_run = holdout_runs()
     assert per_run["model"].tolist() == ["majority", "linearsvc", "camembert", "camembert"]
     assert per_run["seed"].tolist()[2:] == ["13", "42"]
-    summary = test_overview()
+    summary = holdout_overview()
     assert summary["model"].tolist() == ["majority", "linearsvc", "camembert"]
     assert summary.loc[2, "macro_f1"] == pytest.approx(0.67)
     assert summary.loc[2, "seed"] == "13, 42"
     intervals = bootstrap_table()
     assert intervals.loc[("camembert - linearsvc B medium", "macro_f1"), "comparison"] == "primary"
     assert intervals.loc[("camembert", "macro_f1"), "high"] == pytest.approx(0.71)
-    assert test_predictions().loc["k2", "label"] == "PI"
+    assert holdout_predictions().loc["k2", "label"] == "PI"
 
 
 def test_camembert_seeds_join_the_test_runs_with_their_stored_main_runs(mlruns):
