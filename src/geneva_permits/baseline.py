@@ -3,7 +3,7 @@
 import mlflow
 
 from geneva_permits.preprocess import load_texts, train_validation
-from geneva_permits.tracking import SELECTION, log_evaluation, set_experiment
+from geneva_permits.tracking import SELECTION, log_evaluation, set_experiment, start_run
 
 
 def majority_label(labels):
@@ -17,6 +17,6 @@ def run_majority(texts=None):
     train, validation = train_validation(texts)
     label = majority_label(train["label"])
     set_experiment(SELECTION)
-    with mlflow.start_run(run_name="majority"):
+    with start_run(run_name="majority"):
         mlflow.log_params({"model": "majority", "label": label, "train_rows": len(train)})
         return log_evaluation(validation["label"], [label] * len(validation))

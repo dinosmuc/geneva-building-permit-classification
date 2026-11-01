@@ -12,7 +12,7 @@ from sklearn.svm import LinearSVC
 
 from geneva_permits.config import load_config
 from geneva_permits.preprocess import load_texts, train_validation
-from geneva_permits.tracking import SELECTION, log_evaluation, runs, set_experiment
+from geneva_permits.tracking import SELECTION, log_evaluation, runs, set_experiment, start_run
 from geneva_permits.weights import OPTIONS, row_weights
 
 VARIANTS = {"A": "text", "B": "lemmas"}  # the column each variant reads
@@ -66,7 +66,7 @@ def run_points(variant, points, train, validation, settings, extra=None):
     """Fit and score each grid point on the validation rows, one MLflow run each."""
     column, rows = VARIANTS[variant], []
     for weighting, c_log2, ngram_range in points:
-        with mlflow.start_run(run_name=f"linearsvc-{variant}"):
+        with start_run(run_name=f"linearsvc-{variant}"):
             pipeline = make_pipeline(c_log2, ngram_range, settings)
             n_iter, warning = fit(pipeline, train[column], train["label"], weighting)
             params = {

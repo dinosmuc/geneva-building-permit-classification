@@ -27,7 +27,14 @@ from geneva_permits.config import load_config
 from geneva_permits.curves import draws, nested_subsets
 from geneva_permits.evaluate import CLASSES, scores
 from geneva_permits.preprocess import load_texts, train_validation
-from geneva_permits.tracking import LEARNING_CURVES, SELECTION, log_evaluation, runs, set_experiment
+from geneva_permits.tracking import (
+    LEARNING_CURVES,
+    SELECTION,
+    log_evaluation,
+    runs,
+    set_experiment,
+    start_run,
+)
 from geneva_permits.weights import OPTIONS, class_weights
 
 # special_tokens_map.json of the pinned revision
@@ -206,7 +213,7 @@ def run(stage, point, train, validation, model_settings, settings):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = load_tokenizer(model_settings)
     model = load_model(model_settings).to(device)
-    with mlflow.start_run(run_name="-".join(map(str, ["camembert", stage, *point.values()]))):
+    with start_run(run_name="-".join(map(str, ["camembert", stage, *point.values()]))):
         mlflow.log_params(
             {
                 "model": "camembert",
