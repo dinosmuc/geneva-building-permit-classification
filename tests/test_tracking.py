@@ -13,6 +13,7 @@ from geneva_permits.tracking import (
     SELECTION,
     TEST,
     bootstrap_table,
+    camembert_seeds,
     histories,
     learning_curves,
     mean_table,
@@ -157,3 +158,21 @@ def test_the_test_experiment_reads_back_per_run_and_summarized(mlruns):
     assert intervals.loc[("camembert - linearsvc B medium", "macro_f1"), "comparison"] == "primary"
     assert intervals.loc[("camembert", "macro_f1"), "high"] == pytest.approx(0.71)
     assert test_predictions().loc["k2", "label"] == "PI"
+
+
+def test_camembert_seeds_join_the_test_runs_with_their_stored_main_runs(mlruns):
+    stored = {}
+    for seed, epoch, macro_f1 in [(42, 3, 0.70), (13, 5, 0.71)]:
+        set_experiment(SELECTION)
+        with start_run():
+            mlflow.log_params({"model": "camembert", "stage": "main", "seed": seed})
+            mlflow.log_metrics({"kept_epoch": epoch, "macro_f1": macro_f1})
+            stored[seed] = mlflow.active_run().info.run_id
+    for seed, macro_f1 in [(42, 0.68), (13, 0.66)]:
+        params = {"model": "camembert", "seed": seed, "stored_run": stored[seed]}
+        log(TEST, params, macro_f1)
+    table = camembert_seeds()
+    assert table["seed"].tolist() == [13, 42]
+    assert table["kept_epoch"].tolist() == [5, 3]
+    assert table["validation_macro_f1"].tolist() == pytest.approx([0.71, 0.70])
+    assert table["test_macro_f1"].tolist() == pytest.approx([0.66, 0.68])

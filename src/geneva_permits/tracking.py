@@ -163,6 +163,23 @@ def test_overview():
     return summarize(scored[scored["params.model"].notna()])
 
 
+def camembert_seeds():
+    """Each CamemBERT seed on the test beside its stored main run: kept epoch, validation score."""
+    tested = runs(TEST, "params.model = 'camembert'").set_index("params.stored_run")
+    stored = runs(SELECTION, "params.model = 'camembert' and params.stage = 'main'")
+    stored = stored.set_index("run_id").loc[tested.index]
+    rows = pd.DataFrame(
+        {
+            "seed": tested["params.seed"].astype(int).to_numpy(),
+            "kept_epoch": stored["metrics.kept_epoch"].astype(int).to_numpy(),
+            "validation_macro_f1": stored["metrics.macro_f1"].to_numpy(),
+            "test_macro_f1": tested["metrics.macro_f1"].to_numpy(),
+            "test_accuracy": tested["metrics.accuracy"].to_numpy(),
+        }
+    )
+    return rows.sort_values("seed").reset_index(drop=True)
+
+
 def bootstrap_run():
     """The run holding the test's bootstrap tables."""
     return runs(TEST, "attributes.run_name = 'bootstrap'").iloc[0]
