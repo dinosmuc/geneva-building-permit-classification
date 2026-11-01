@@ -4,7 +4,7 @@
 
 The project develops and evaluates a supervised NLP system for classifying French building-permit descriptions from the canton of Geneva. Its central question is how effectively classical text classification and a pretrained French language model can reproduce administrative operation categories from short descriptions alone.
 
-The project corresponds to the domain-specific multiclass classification setting of a pilot study. Its scope covers the dataset, text preparation, model comparison, learning behaviour, evaluation and application to new descriptions.
+The project is a domain-specific multiclass classification pilot. Its scope covers the dataset, text preparation, model comparison, learning behaviour, evaluation and application to new descriptions.
 
 ## 2. Dataset and target categories
 

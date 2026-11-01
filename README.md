@@ -76,8 +76,6 @@ uv run pytest -q
 - SwissText: the [2027 call](https://www.swisstext.org/current/) and the archived
   [2026 call for papers](https://www.swisstext.org/archive/2026/submissions/call-for-papers/).
 
-
-
 ## Data source
 
 Source : Portail des données SITG (État de Genève), téléchargé en date du 27.09.2026.
