@@ -12,6 +12,7 @@ from transformers import (
 )
 
 from geneva_permits import camembert
+from geneva_permits.curves import nested_subsets
 from geneva_permits.evaluate import CLASSES
 
 WORDS = ["villa", "bureaux", "immeuble", "route", "jardin", "toiture", "garage", "usine", "hangar"]
@@ -32,6 +33,16 @@ TEXTS = pd.DataFrame(
         "label": TRAIN_LABELS + ["VIL", "REN", "NOU", "AFF"],
         "text": [f"{w} {w}" for w in WORDS] + ["villa", "bureaux", "immeuble", "usine"],
     }
+)
+CURVE_TEXTS = (
+    pd.DataFrame(  # four rows per class: the 75% draws of seeds 13 and 42 keep every class
+        {
+            "partition": ["train_original"] * 32 + ["validation"] * 4,
+            "label": [c for c in CLASSES for _ in range(4)] + ["VIL", "REN", "NOU", "AFF"],
+            "text": [f"{WORDS[i % 9]} {WORDS[(i + 1) % 9]}" for i in range(32)]
+            + ["villa", "bureaux", "immeuble", "usine"],
+        }
+    )
 )
 SETTINGS = {
     "seeds": [13],
@@ -172,9 +183,9 @@ def test_main_resumes_from_the_store(toy, mlruns, monkeypatch):
     mlflow.end_run("FAILED")
     calls = []
 
-    def fake_run(stage, weighting, seed, learning_rate, *_):
-        calls.append((weighting, seed))
-        return {"weighting": weighting, "seed": seed, "learning_rate": learning_rate, "epoch": 1}
+    def fake_run(stage, point, *_):
+        calls.append((point["weighting"], point["seed"]))
+        return point | {"train_rows": 9, "epoch": 1}
 
     monkeypatch.setattr(camembert, "run", fake_run)
     again = camembert.run_main(TEXTS, SETTINGS | {"seeds": [13, 42]})
@@ -183,3 +194,31 @@ def test_main_resumes_from_the_store(toy, mlruns, monkeypatch):
     assert (
         len(mlflow.search_runs(experiment_names=["selection"])) == 3
     )  # the interrupted one is gone
+
+
+def test_draw_takes_the_nested_subset_of_a_curve_point_and_every_row_otherwise():
+    train = CURVE_TEXTS[CURVE_TEXTS["partition"].eq("train_original")]
+    point = {"weighting": "none", "seed": 13, "learning_rate": 1e-3}
+    assert camembert.draw(train, point) is train
+    drawn = camembert.draw(train, point | {"fraction": 0.75})
+    assert drawn.equals(train.iloc[nested_subsets(len(train), [0.1, 0.75, 1.0], 13)[0.75]])
+
+
+def test_curves_run_the_selected_weighting_on_each_draw_below_the_full_set(toy, mlruns):
+    camembert.run_main(TEXTS, SETTINGS)
+    settings = SETTINGS | {"seeds": [13, 42]}
+    results = camembert.run_curves(CURVE_TEXTS, settings, fractions=[0.75, 1.0])
+    assert results[["fraction", "seed"]].values.tolist() == [[0.75, 13], [0.75, 42]]
+    assert set(results["weighting"]) == {camembert.selected()}
+    assert results["train_rows"].eq(24).all()
+    assert results["epoch"].between(1, SETTINGS["epochs"]).all()
+    runs = mlflow.search_runs(experiment_names=["learning_curves"])
+    assert set(runs["params.stage"]) == {"curves"}
+    assert set(runs["params.fraction"]) == {"0.75"}
+    assert set(runs["params.train_rows"]) == {"24"}
+    assert not any((mlruns / "learning_curves").rglob("model.safetensors"))
+    again = camembert.run_curves(CURVE_TEXTS, settings, fractions=[0.75, 1.0])
+    assert again["macro_f1"].tolist() == pytest.approx(
+        results["macro_f1"].tolist()
+    )  # from the store
+    assert len(mlflow.search_runs(experiment_names=["learning_curves"])) == 2

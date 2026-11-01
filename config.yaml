@@ -56,7 +56,10 @@ selection:                            # pre-registered: committed before the 201
   learning_curves:
     fractions: [0.1, 0.3, 1.0]        # scope document §5
     nested: true                      # 10% ⊂ 30% ⊂ 100%, one draw per seed in training.seeds
-    retune: [C, ngram_range]          # the selected weighting stays fixed; its weights are recomputed per subset
+    retune: [C, ngram_range]          # LinearSVC: the selected weighting stays fixed; its weights are recomputed per subset
+    camembert: nothing retuned        # the selected weighting, the frozen learning rate and the best-epoch rule, one run per
+                                      # seed on the 10% and 30% draws (the seed draws the subset and seeds the training);
+                                      # the 100% points are the main runs of that weighting
 
 teacher:
   provider: deepseek

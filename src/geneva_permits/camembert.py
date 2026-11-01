@@ -24,9 +24,10 @@ from transformers import (
 )
 
 from geneva_permits.config import load_config
+from geneva_permits.curves import draws, nested_subsets
 from geneva_permits.evaluate import CLASSES, scores
 from geneva_permits.preprocess import load_texts, train_validation
-from geneva_permits.tracking import SELECTION, log_evaluation, runs, set_experiment
+from geneva_permits.tracking import LEARNING_CURVES, SELECTION, log_evaluation, runs, set_experiment
 from geneva_permits.weights import OPTIONS, class_weights
 
 # special_tokens_map.json of the pinned revision
@@ -39,6 +40,10 @@ SPECIAL_TOKENS = {
 }
 PILOT = "pilot"  # learning-rate runs: seed 13, weighting none, no stored weights
 MAIN = "main"  # weighting options x seeds at the frozen learning rate, weights stored
+CURVES = "curves"  # the selected weighting x seeds on the 10% and 30% draws, no stored weights
+EXPERIMENT = {PILOT: SELECTION, MAIN: SELECTION, CURVES: LEARNING_CURVES}
+# the params identifying a run, typed from their stored strings; only curve points have a fraction
+POINT = {"weighting": str, "seed": int, "learning_rate": float, "fraction": float}
 CHECKPOINTS = ["best", "final"]  # the epoch kept: best validation macro-F1, or the last one
 LOGGED = [
     "max_seq_length",
@@ -182,30 +187,48 @@ def fit(model, tokenizer, train, validation, weighting, learning_rate, settings,
     return kept["epoch"], kept["predictions"]
 
 
-def run(stage, weighting, seed, learning_rate, train, validation, model_settings, settings):
-    """One logged run from a fresh pinned model; main runs also store the kept weights."""
-    set_seed(seed)
+def key(point):
+    """The identity of a point, independent of its key order."""
+    return tuple(sorted(point.items()))
+
+
+def draw(train, point):
+    """The training rows of a point: every row, or the nested draw of its fraction and seed."""
+    if "fraction" not in point:
+        return train
+    fraction = point["fraction"]
+    return train.iloc[nested_subsets(len(train), [fraction], point["seed"])[fraction]]
+
+
+def run(stage, point, train, validation, model_settings, settings):
+    """One logged run from a fresh pinned model at a point; main runs also store their weights."""
+    set_seed(point["seed"])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = load_tokenizer(model_settings)
     model = load_model(model_settings).to(device)
-    with mlflow.start_run(run_name=f"camembert-{stage}-{weighting}-{seed}"):
+    with mlflow.start_run(run_name="-".join(map(str, ["camembert", stage, *point.values()]))):
         mlflow.log_params(
             {
                 "model": "camembert",
                 "revision": model_settings["revision"],
                 "stage": stage,
-                "weighting": weighting,
-                "seed": seed,
-                "learning_rate": learning_rate,
                 "train_rows": len(train),
                 "device": torch.cuda.get_device_name() if device.type == "cuda" else "cpu",
                 "precision": "fp16" if mixed_precision(device, settings["precision"]) else "fp32",
             }
-            | {key: settings[key] for key in LOGGED}
+            | point
+            | {name: settings[name] for name in LOGGED}
         )
         start = time.time()
         epoch, predictions = fit(
-            model, tokenizer, train, validation, weighting, learning_rate, settings, device
+            model,
+            tokenizer,
+            train,
+            validation,
+            point["weighting"],
+            point["learning_rate"],
+            settings,
+            device,
         )
         mlflow.log_metrics({"train_seconds": time.time() - start, "kept_epoch": epoch})
         summary = log_evaluation(validation["label"], predictions)
@@ -213,43 +236,46 @@ def run(stage, weighting, seed, learning_rate, train, validation, model_settings
             with tempfile.TemporaryDirectory() as directory:
                 model.save_pretrained(directory)
                 mlflow.log_artifacts(directory, "model")
-    point = {"weighting": weighting, "seed": seed, "learning_rate": learning_rate, "epoch": epoch}
-    return point | summary
+    return point | {"train_rows": len(train), "epoch": epoch} | summary
 
 
 def finished(stage):
-    """Points of this stage already finished in the store, with their logged results.
+    """Points of this stage already finished in the store, by key, with their logged results.
 
     Runs the stage left unfinished, from an interrupted command, are deleted.
     """
-    done = runs(SELECTION, f"params.model = 'camembert' and params.stage = '{stage}'")
+    done = runs(EXPERIMENT[stage], f"params.model = 'camembert' and params.stage = '{stage}'")
     if done.empty:
         return {}
     for run_id in done.loc[done["status"] != "FINISHED", "run_id"]:
         mlflow.delete_run(run_id)
-    return {
-        (r["params.weighting"], int(r["params.seed"]), float(r["params.learning_rate"])): {
-            "weighting": r["params.weighting"],
-            "seed": int(r["params.seed"]),
-            "learning_rate": float(r["params.learning_rate"]),
+    results = {}
+    for _, r in done[done["status"] == "FINISHED"].iterrows():
+        point = {
+            name: parse(r[f"params.{name}"])
+            for name, parse in POINT.items()
+            if pd.notna(r.get(f"params.{name}"))
+        }
+        results[key(point)] = point | {
+            "train_rows": int(r["params.train_rows"]),
             "epoch": int(r["metrics.kept_epoch"]),
             "macro_f1": r["metrics.macro_f1"],
             "accuracy": r["metrics.accuracy"],
         }
-        for _, r in done[done["status"] == "FINISHED"].iterrows()
-    }
+    return results
 
 
 def run_points(stage, points, texts=None, settings=None):
-    """Run every (weighting, seed, learning_rate) point not yet finished in the store."""
+    """Run every point not yet finished in the store, each on its training rows (see draw)."""
     config = load_config()
     settings = settings or config["training"]
     train, validation = train_validation(load_texts() if texts is None else texts)
-    set_experiment(SELECTION)
+    set_experiment(EXPERIMENT[stage])
     model_settings = config["models"]["primary"]
     done = finished(stage)
     results = [
-        done.get(point) or run(stage, *point, train, validation, model_settings, settings)
+        done.get(key(point))
+        or run(stage, point, draw(train, point), validation, model_settings, settings)
         for point in points
     ]
     return pd.DataFrame(results)
@@ -258,7 +284,10 @@ def run_points(stage, points, texts=None, settings=None):
 def run_pilot(texts=None, settings=None):
     """One run per pilot learning rate on the first seed without weighting."""
     settings = settings or load_config()["training"]
-    points = [("none", settings["seeds"][0], lr) for lr in settings["pilot_learning_rates"]]
+    points = [
+        {"weighting": "none", "seed": settings["seeds"][0], "learning_rate": lr}
+        for lr in settings["pilot_learning_rates"]
+    ]
     return run_points(PILOT, points, texts, settings)
 
 
@@ -267,8 +296,30 @@ def run_main(texts=None, settings=None):
     settings = settings or load_config()["training"]
     if settings["learning_rate"] is None:
         raise ValueError("training.learning_rate is null: freeze it from the pilot first")
-    points = [(w, seed, settings["learning_rate"]) for w in OPTIONS for seed in settings["seeds"]]
+    points = [
+        {"weighting": w, "seed": seed, "learning_rate": settings["learning_rate"]}
+        for w in OPTIONS
+        for seed in settings["seeds"]
+    ]
     return run_points(MAIN, points, texts, settings)
+
+
+def run_curves(texts=None, settings=None, fractions=None):
+    """The selected weighting at the frozen learning rate on every draw below the full set.
+
+    Nothing is retuned; the seed draws the subset and seeds the training. The full set's
+    points are the main runs of that weighting.
+    """
+    config = load_config()
+    settings = settings or config["training"]
+    fractions = fractions or config["selection"]["learning_curves"]["fractions"]
+    weighting = selected()
+    learning_rate = settings["learning_rate"]
+    points = [
+        {"weighting": weighting, "seed": seed, "learning_rate": learning_rate, "fraction": f}
+        for f, seed in draws([f for f in fractions if f < 1], settings["seeds"])
+    ]
+    return run_points(CURVES, points, texts, settings)
 
 
 def best_weighting(main_runs):

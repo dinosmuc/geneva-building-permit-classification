@@ -52,9 +52,12 @@ def train_camembert(args):
         results = camembert.run_pilot()
         best = results.loc[results["macro_f1"].idxmax()]
         print(f"camembert pilot: best macro-F1 {best['macro_f1']:.3f} at {best['learning_rate']}")
-    else:
+    elif args.stage == camembert.MAIN:
         results = camembert.run_main()
         print(f"camembert main: selected weighting {camembert.selected()}")
+    else:
+        results = camembert.run_curves()
+        print("camembert curves: best-epoch macro-F1 per draw at the selected weighting")
     print(results.to_string())
 
 
@@ -91,8 +94,8 @@ def build_parser():
     transformer = actions.add_parser("camembert", help="CamemBERTav2 fine-tuning")
     transformer.add_argument(
         "stage",
-        choices=[camembert.PILOT, camembert.MAIN],
-        help="pilot: learning rates; main: 9 runs",
+        choices=[camembert.PILOT, camembert.MAIN, camembert.CURVES],
+        help="pilot: learning rates; main: 9 runs; curves: the 10%% and 30%% draws",
     )
     transformer.set_defaults(handler=train_camembert)
     return parser
