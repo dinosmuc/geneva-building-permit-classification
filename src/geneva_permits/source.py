@@ -1,7 +1,5 @@
-"""The pinned SITG snapshot: fetch, verify and read.
-
-`source_manifest.json` is a lock file: code reads it and never writes it. Changing the pin is a
-manual, reviewed edit.
+"""The pinned SITG snapshot: fetch, verify and read. `source_manifest.json` is a lock file: code
+reads it and never writes it. Changing the pin is a manual, reviewed edit.
 """
 
 import contextlib
@@ -24,7 +22,7 @@ DATE_COLUMNS = ["DATE_DEPOT", "DATE_MAJ_2"]
 DATE_FORMAT = "%Y%m%d"  # DATE_DEPOT is stored as 20020226
 TIMESTAMP_FORMAT = "%Y%m%d%H%M%S"  # three filing dates carry a time of day
 
-# Tried in order; the first one that decodes is used.
+# Tried in order, the first one that decodes is used.
 CANDIDATE_ENCODINGS = ["utf-8-sig", "utf-8", "cp1252", "latin-1"]
 
 BLOCK_SIZE = 1024 * 1024

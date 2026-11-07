@@ -20,7 +20,7 @@ TEXTS = pd.DataFrame(  # the training rows of test_camembert cover every class, 
     }
 )
 TEXTS["lemmas"] = TEXTS["text"]
-GROUPS = ["d1", "d1", "d2", "d3"]  # the four test rows in three dossiers
+GROUPS = ["d1", "d1", "d2", "d3"]
 PLAN = {
     "partition": "test_historical",
     "groups": "base_dossier",

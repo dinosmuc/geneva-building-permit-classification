@@ -45,13 +45,13 @@ SPECIAL_TOKENS = {
     "unk_token": "[UNK]",
     "mask_token": "[MASK]",
 }
-PILOT = "pilot"  # learning-rate runs: seed 13, weighting none, no stored weights
-MAIN = "main"  # weighting options x seeds at the frozen learning rate, weights stored
-CURVES = "curves"  # the selected weighting x seeds on the 10% and 30% draws, no stored weights
+PILOT = "pilot"
+MAIN = "main"
+CURVES = "curves"
 EXPERIMENT = {PILOT: SELECTION, MAIN: SELECTION, CURVES: LEARNING_CURVES}
-# the params identifying a run, typed from their stored strings; only curve points have a fraction
+
 POINT = {"weighting": str, "seed": int, "learning_rate": float, "fraction": float}
-CHECKPOINTS = ["best", "final"]  # the epoch kept: best validation macro-F1, or the last one
+CHECKPOINTS = ["best", "final"]
 LOGGED = [
     "max_seq_length",
     "batch_size",

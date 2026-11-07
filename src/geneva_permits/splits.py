@@ -10,7 +10,7 @@ REVIEW_PATH = ANNOTATIONS_DIR / "exploratory_review.csv"
 SPLITS_PATH = SPLITS_DIR / "splits.csv"
 TRAIN = "train_original"
 VALIDATION = "validation"
-POOL = "pool_unlabelled"  # takes unlabelled records; every other partition takes target ones
+POOL = "pool_unlabelled"  # takes unlabelled records, every other partition takes target ones
 EVALUATION = ["validation", "test_historical", "test_recent"]
 
 
