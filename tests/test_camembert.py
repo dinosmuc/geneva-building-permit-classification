@@ -11,7 +11,8 @@ from transformers import (
     PreTrainedTokenizerFast,
 )
 
-from geneva_permits import camembert
+from geneva_permits import camembert, preprocess
+from geneva_permits.config import load_config
 from geneva_permits.curves import nested_subsets
 from geneva_permits.evaluate import CLASSES
 
@@ -139,6 +140,45 @@ def test_main_keeps_the_best_epoch_and_stores_its_model(toy, mlruns):
     assert run["metrics.macro_f1"] == pytest.approx(max(history))
     assert any(mlruns.rglob("model/model.safetensors"))
     assert camembert.selected() in camembert.OPTIONS
+
+
+def test_the_fingerprint_follows_the_training_settings_the_model_and_the_data(
+    tmp_path, monkeypatch
+):
+    model = load_config()["models"]["primary"]
+    base = camembert.fingerprint(SETTINGS, model)
+    assert camembert.fingerprint(SETTINGS | {"seeds": [1], "learning_rate": 1.0}, model) == base
+    assert camembert.fingerprint(SETTINGS | {"max_grad_norm": 0.5}, model) != base
+    assert camembert.fingerprint(SETTINGS, model | {"revision": "0" * 40}) != base
+    split = tmp_path / "splits.csv"
+    split.write_text("record_key,partition\n")
+    monkeypatch.setattr(preprocess, "SPLITS_PATH", split)
+    assert camembert.fingerprint(SETTINGS, model) != base
+
+
+def test_every_run_logs_its_fingerprint(toy):
+    camembert.run_pilot(TEXTS, SETTINGS)
+    camembert.run_main(TEXTS, SETTINGS)
+    fingerprint = camembert.fingerprint(SETTINGS, load_config()["models"]["primary"])
+    runs = mlflow.search_runs(experiment_names=["selection"])
+    assert len(runs) == 5
+    assert runs["params.fingerprint"].eq(fingerprint).all()
+
+
+def test_main_reruns_a_point_whose_finished_run_has_another_fingerprint(toy, monkeypatch):
+    camembert.run_main(TEXTS, SETTINGS)
+    calls = []
+
+    def fake_run(stage, point, *_):
+        calls.append(point["weighting"])
+        return point | {"train_rows": 9, "epoch": 1}
+
+    monkeypatch.setattr(camembert, "run", fake_run)
+    camembert.run_main(TEXTS, SETTINGS)
+    assert calls == []  # the same fingerprint: every point is reused
+    camembert.run_main(TEXTS, SETTINGS | {"max_grad_norm": 0.5})
+    assert calls == ["none", "medium", "full"]
+    assert len(mlflow.search_runs(experiment_names=["selection"])) == 3  # the earlier runs stay
 
 
 def test_final_mode_keeps_the_last_epoch(toy):

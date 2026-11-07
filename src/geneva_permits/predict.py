@@ -12,7 +12,7 @@ def load(config):
     """The configured stored model and its tokenizer, on the available device."""
     choice = config["prediction"]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    run_id = camembert.stored_run(choice["weighting"], choice["seed"])
+    run_id = camembert.stored_run(choice["weighting"], choice["seed"], config)
     model = camembert.load_stored(run_id).to(device)
     return model, camembert.load_tokenizer(config["models"]["primary"]), device
 

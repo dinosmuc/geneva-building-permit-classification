@@ -7,6 +7,8 @@ from tokenizer.json directly. Words longer than 16 characters become [UNK] (its
 max_input_chars_per_word): 178 training tokens, e.g. "télécommunication".
 """
 
+import hashlib
+import json
 import tempfile
 import time
 
@@ -26,7 +28,7 @@ from transformers import (
 from geneva_permits.config import load_config
 from geneva_permits.curves import draws, nested_subsets
 from geneva_permits.evaluate import CLASSES, scores
-from geneva_permits.preprocess import load_texts, train_validation
+from geneva_permits.preprocess import data_provenance, load_texts, train_validation
 from geneva_permits.tracking import (
     LEARNING_CURVES,
     SELECTION,
@@ -52,6 +54,19 @@ EXPERIMENT = {PILOT: SELECTION, MAIN: SELECTION, CURVES: LEARNING_CURVES}
 
 POINT = {"weighting": str, "seed": int, "learning_rate": float, "fraction": float}
 CHECKPOINTS = ["best", "final"]
+TRAINED_WITH = [
+    "precision",
+    "max_seq_length",
+    "batch_size",
+    "epochs",
+    "checkpoint",
+    "schedule",
+    "warmup_ratio",
+    "weight_decay",
+    "adam_betas",
+    "adam_epsilon",
+    "max_grad_norm",
+]
 LOGGED = [
     "max_seq_length",
     "batch_size",
@@ -133,15 +148,36 @@ def predict(model, loader, device, precision):
     return [CLASSES[i] for i in logits(model, loader, device, precision).argmax(-1).tolist()]
 
 
-def stored_run(weighting, seed):
-    """The id of the main run that stored the model of a weighting and seed."""
+def fingerprint(settings, model_settings):
+    """SHA-256 of what a run depends on beyond its point: the training settings fit uses, the
+    pinned model and the data (snapshot and stored split)."""
+    identity = {
+        "training": {name: settings[name] for name in TRAINED_WITH},
+        "model": {name: model_settings[name] for name in ["id", "revision"]},
+        "data": data_provenance(),
+    }
+    return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+
+
+def stored_run(weighting, seed, config):
+    """The id of the finished main run that stored the model of a weighting and seed at the
+    configured learning rate and fingerprint; raises unless exactly one run matches."""
+    settings = config["training"]
+    identity = {
+        "stage": MAIN,
+        "weighting": weighting,
+        "seed": seed,
+        "learning_rate": settings["learning_rate"],
+        "fingerprint": fingerprint(settings, config["models"]["primary"]),
+    }
+    conditions = " and ".join(f"params.{name} = '{value}'" for name, value in identity.items())
     main = runs(
         SELECTION,
-        f"params.model = 'camembert' and params.stage = '{MAIN}' "
-        f"and params.weighting = '{weighting}' and params.seed = '{seed}'",
+        f"params.model = 'camembert' and attributes.status = 'FINISHED' and {conditions}",
     )
-    (run_id,) = main["run_id"]
-    return run_id
+    if len(main) != 1:
+        raise LookupError(f"expected one stored main run for {identity}, found {len(main)}")
+    return main["run_id"].iloc[0]
 
 
 def load_stored(run_id):
@@ -233,7 +269,7 @@ def draw(train, point):
     return train.iloc[nested_subsets(len(train), [fraction], point["seed"])[fraction]]
 
 
-def run(stage, point, train, validation, model_settings, settings):
+def run(stage, point, train, validation, model_settings, settings, run_fingerprint):
     """One logged run from a fresh pinned model at a point; main runs also store their weights."""
     set_seed(point["seed"])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -248,6 +284,7 @@ def run(stage, point, train, validation, model_settings, settings):
                 "train_rows": len(train),
                 "device": torch.cuda.get_device_name() if device.type == "cuda" else "cpu",
                 "precision": "fp16" if mixed_precision(device, settings["precision"]) else "fp32",
+                "fingerprint": run_fingerprint,
             }
             | point
             | {name: settings[name] for name in LOGGED}
@@ -272,18 +309,20 @@ def run(stage, point, train, validation, model_settings, settings):
     return point | {"train_rows": len(train), "epoch": epoch} | summary
 
 
-def finished(stage):
-    """Points of this stage already finished in the store, by key, with their logged results.
+def finished(stage, run_fingerprint):
+    """Points of this stage finished in the store with this fingerprint, by key, with their results.
 
-    Runs the stage left unfinished, from an interrupted command, are deleted.
+    Runs the stage left unfinished, from an interrupted command, are deleted. Finished runs with
+    another fingerprint stay in the store but are not reused.
     """
     done = runs(EXPERIMENT[stage], f"params.model = 'camembert' and params.stage = '{stage}'")
     if done.empty:
         return {}
     for run_id in done.loc[done["status"] != "FINISHED", "run_id"]:
         mlflow.delete_run(run_id)
+    same = done.reindex(columns=["params.fingerprint"])["params.fingerprint"].eq(run_fingerprint)
     results = {}
-    for _, r in done[done["status"] == "FINISHED"].iterrows():
+    for _, r in done[done["status"].eq("FINISHED") & same].iterrows():
         point = {
             name: parse(r[f"params.{name}"])
             for name, parse in POINT.items()
@@ -305,10 +344,13 @@ def run_points(stage, points, texts=None, settings=None):
     train, validation = train_validation(load_texts() if texts is None else texts)
     set_experiment(EXPERIMENT[stage])
     model_settings = config["models"]["primary"]
-    done = finished(stage)
+    run_fingerprint = fingerprint(settings, model_settings)
+    done = finished(stage, run_fingerprint)
     results = [
         done.get(key(point))
-        or run(stage, point, draw(train, point), validation, model_settings, settings)
+        or run(
+            stage, point, draw(train, point), validation, model_settings, settings, run_fingerprint
+        )
         for point in points
     ]
     return pd.DataFrame(results)

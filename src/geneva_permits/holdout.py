@@ -73,7 +73,7 @@ def score_linearsvc(spec, train, test, settings):
 
 def score_camembert(weighting, seed, test, config):
     """The stored main model of a weighting and seed, scored on the test rows."""
-    run_id = camembert.stored_run(weighting, seed)
+    run_id = camembert.stored_run(weighting, seed, config)
     settings = config["training"]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = camembert.load_stored(run_id).to(device)
@@ -82,7 +82,13 @@ def score_camembert(weighting, seed, test, config):
     )
     with start_run(run_name=f"camembert-{weighting}-{seed}"):
         mlflow.log_params(
-            {"model": "camembert", "weighting": weighting, "seed": seed, "stored_run": run_id}
+            {
+                "model": "camembert",
+                "weighting": weighting,
+                "seed": seed,
+                "stored_run": run_id,
+                "fingerprint": camembert.fingerprint(settings, config["models"]["primary"]),
+            }
         )
         predictions = camembert.predict(model, loader, device, settings["precision"])
         log_evaluation(test["label"], predictions)

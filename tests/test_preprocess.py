@@ -1,11 +1,21 @@
-"""Lemmatized texts: what the pipeline keeps, and the stored file's version check."""
+"""Lemmatized texts: what the pipeline keeps, and the stored file's provenance check."""
 
 import pandas as pd
 import pytest
 import spacy
 
+from geneva_permits import preprocess
 from geneva_permits.config import load_config
-from geneva_permits.preprocess import build_texts, lemmatize, load_nlp, load_texts, versions
+from geneva_permits.preprocess import (
+    build_texts,
+    lemmatize,
+    load_nlp,
+    load_texts,
+    provenance,
+    versions,
+    write_texts,
+)
+from geneva_permits.source import read_lock, sha256_of
 
 
 @pytest.fixture(scope="module")
@@ -47,14 +57,63 @@ def test_build_texts_skips_the_pool_and_records_versions(nlp):
     assert texts.attrs == versions()
 
 
+@pytest.fixture
+def stored_split(tmp_path, monkeypatch):
+    """A stored split of two records in place of data/splits/splits.csv."""
+    path = tmp_path / "splits.csv"
+    path.write_text("record_key,partition\na,train_original\nb,pool_unlabelled\n")
+    monkeypatch.setattr(preprocess, "SPLITS_PATH", path)
+    return path
+
+
+SPLIT_RECORDS = pd.DataFrame(
+    {
+        "record_key": ["a", "b"],
+        "partition": ["train_original", "pool_unlabelled"],
+        "label": ["VIL", None],
+        "DESCRIPTION": ["construction d'une villa", "pose d'une tente"],
+        "exclusion_reason": ["retained", "retained"],
+    }
+)
+
+
 def test_load_texts_refuses_other_versions(tmp_path):
     path = tmp_path / "texts.parquet"
     texts = pd.DataFrame({"lemmas": ["villa"]})
-    texts.attrs = versions()
+    texts.attrs = provenance()
     texts.to_parquet(path)
     pd.testing.assert_frame_equal(load_texts(path), texts)
 
-    texts.attrs = versions() | {"spacy": "0.0"}
+    texts.attrs = provenance() | {"spacy": "0.0"}
     texts.to_parquet(path)
-    with pytest.raises(ValueError, match="rerun"):
+    with pytest.raises(ValueError, match="other spacy; rerun"):
         load_texts(path)
+
+
+@pytest.mark.parametrize("missing", ["snapshot_sha256", "splits_sha256"])
+def test_load_texts_refuses_texts_without_their_data_provenance(tmp_path, missing):
+    path = tmp_path / "texts.parquet"
+    texts = pd.DataFrame({"lemmas": ["villa"]})
+    texts.attrs = {k: v for k, v in provenance().items() if k != missing}
+    texts.to_parquet(path)
+    with pytest.raises(ValueError, match=f"other {missing}; rerun"):
+        load_texts(path)
+
+
+def test_write_texts_records_the_snapshot_and_split_and_refuses_a_changed_split(
+    tmp_path, monkeypatch, nlp, stored_split
+):
+    monkeypatch.setattr(preprocess, "load_splits", lambda: SPLIT_RECORDS)
+    monkeypatch.setattr(preprocess, "load_nlp", lambda: nlp)
+    path = tmp_path / "texts.parquet"
+    write_texts(path)
+    texts = load_texts(path)
+    assert texts["record_key"].tolist() == ["a"]
+    assert texts.attrs["splits_sha256"] == sha256_of(stored_split)
+    assert texts.attrs["snapshot_sha256"] == read_lock()["sha256"]
+
+    stored_split.write_text("record_key,partition\na,validation\nb,pool_unlabelled\n")
+    with pytest.raises(ValueError, match="other splits_sha256"):
+        load_texts(path)  # the texts no longer match the stored split
+    with pytest.raises(ValueError, match="computed split differs"):
+        write_texts(path)  # nor does the split the code computes

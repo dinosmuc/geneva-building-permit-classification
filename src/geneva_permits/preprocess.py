@@ -6,7 +6,8 @@ import pandas as pd
 import spacy
 
 from geneva_permits.config import PROCESSED_DIR, load_config
-from geneva_permits.splits import POOL, TRAIN, VALIDATION, load_splits
+from geneva_permits.source import read_lock, sha256_of
+from geneva_permits.splits import POOL, SPLITS_PATH, TRAIN, VALIDATION, load_splits, split_table
 
 PROCESSED_PATH = PROCESSED_DIR / "texts.parquet"
 UNUSED_PIPES = ["parser", "ner"]  # lemmas are identical without them
@@ -33,6 +34,16 @@ def versions():
     return {"spacy": spacy.__version__, model: version(model)}
 
 
+def data_provenance():
+    """The pinned snapshot's SHA-256 and the SHA-256 of the stored split."""
+    return {"snapshot_sha256": read_lock()["sha256"], "splits_sha256": sha256_of(SPLITS_PATH)}
+
+
+def provenance():
+    """What the stored texts are made with: the spaCy versions, the snapshot and the split."""
+    return versions() | data_provenance()
+
+
 def build_texts(splits, nlp):
     """Original and lemmatized text of the retained records outside the unlabelled pool."""
     columns = ["record_key", "partition", "label", "DESCRIPTION"]
@@ -44,18 +55,35 @@ def build_texts(splits, nlp):
 
 
 def write_texts(path=PROCESSED_PATH):
-    """Lemmatize the current split and store it with the versions used."""
-    texts = build_texts(load_splits(), load_nlp())
+    """Lemmatize the current split and store it with its provenance.
+
+    Refuses when the split the code computes differs from the stored one, whose hash it records.
+    """
+    splits = load_splits()
+    stored = pd.read_csv(SPLITS_PATH, dtype="string")
+    if not split_table(splits).astype("string").equals(stored):
+        raise ValueError(
+            f"the computed split differs from {SPLITS_PATH}; after a deliberate change, run "
+            "`permits data splits` and review the diff"
+        )
+    texts = build_texts(splits, load_nlp())
+    texts.attrs |= data_provenance()
     path.parent.mkdir(parents=True, exist_ok=True)
     texts.to_parquet(path, index=False)
     return path, len(texts)
 
 
 def load_texts(path=PROCESSED_PATH):
-    """The stored texts; raises if spaCy or the model changed since they were written."""
+    """The stored texts; raises if spaCy, its model, the snapshot or the split changed since."""
     texts = pd.read_parquet(path)
-    if texts.attrs != versions():
-        raise ValueError(f"{path} was made with {texts.attrs}; rerun `permits data preprocess`")
+    expected = provenance()
+    changed = sorted(
+        k for k in expected.keys() | texts.attrs.keys() if texts.attrs.get(k) != expected.get(k)
+    )
+    if changed:
+        raise ValueError(
+            f"{path} was made with other {', '.join(changed)}; rerun `permits data preprocess`"
+        )
     return texts
 
 

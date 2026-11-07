@@ -1,5 +1,6 @@
 """New descriptions get a class and eight scores from the stored model of the configured seed."""
 
+import mlflow
 import pandas as pd
 import pytest
 from test_camembert import SETTINGS, TEXTS, toy_model, toy_tokenizer
@@ -33,12 +34,37 @@ def test_classify_gives_a_class_and_a_score_per_class(stored):
 
 
 def test_the_stored_run_is_the_main_run_of_the_configured_seed(stored):
-    run_id = camembert.stored_run("none", 13)
+    run_id = camembert.stored_run("none", 13, stored)
     run = tracking.runs(tracking.SELECTION).set_index("run_id").loc[run_id]
     assert (run["params.weighting"], run["params.seed"], run["params.stage"]) == (
         "none",
         "13",
         "main",
     )
-    with pytest.raises(ValueError):  # no stored model for a seed that never ran
-        camembert.stored_run("none", 99)
+    with pytest.raises(LookupError, match="found 0"):  # a seed that never ran
+        camembert.stored_run("none", 99, stored)
+
+
+@pytest.mark.parametrize("change", [{"learning_rate": 1e-4}, {"epochs": 4}])
+def test_a_model_trained_with_other_settings_is_not_used(stored, change):
+    other = stored | {"training": SETTINGS | change}
+    with pytest.raises(LookupError, match="found 0"):
+        predict.classify(["villa"], other)
+
+
+def test_the_lookup_refuses_two_matching_runs_and_ignores_unfinished_ones(stored):
+    run = (
+        tracking.runs(tracking.SELECTION)
+        .set_index("run_id")
+        .loc[camembert.stored_run("none", 13, stored)]
+    )
+    params = {k.removeprefix("params."): v for k, v in run.items() if k.startswith("params.")}
+    tracking.set_experiment(tracking.SELECTION)
+    with mlflow.start_run():  # an interrupted copy
+        mlflow.log_params(params)
+        mlflow.end_run("FAILED")
+    assert camembert.stored_run("none", 13, stored)
+    with mlflow.start_run():  # a finished copy
+        mlflow.log_params(params)
+    with pytest.raises(LookupError, match="found 2"):
+        camembert.stored_run("none", 13, stored)
