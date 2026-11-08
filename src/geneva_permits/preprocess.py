@@ -1,5 +1,7 @@
 """Lemmatized descriptions for the classical models, computed once and stored."""
 
+import hashlib
+import json
 from importlib.metadata import version
 
 import pandas as pd
@@ -7,7 +9,15 @@ import spacy
 
 from geneva_permits.config import PROCESSED_DIR, load_config
 from geneva_permits.source import read_lock, sha256_of
-from geneva_permits.splits import POOL, SPLITS_PATH, TRAIN, VALIDATION, load_splits, split_table
+from geneva_permits.splits import (
+    POOL,
+    REVIEW_PATH,
+    SPLITS_PATH,
+    TRAIN,
+    VALIDATION,
+    load_splits,
+    split_table,
+)
 
 PROCESSED_PATH = PROCESSED_DIR / "texts.parquet"
 UNUSED_PIPES = ["parser", "ner"]  # lemmas are identical without them
@@ -34,13 +44,29 @@ def versions():
     return {"spacy": spacy.__version__, model: version(model)}
 
 
+def split_settings_sha256():
+    """SHA-256 of what the split follows besides the snapshot: data.splits, dedup, the target and
+    excluded classes, and the reviewed records."""
+    data = load_config()["data"]
+    settings = {
+        name: data[name] for name in ["splits", "dedup", "target_classes", "excluded_classes"]
+    }
+    settings["review_sha256"] = sha256_of(REVIEW_PATH)
+    return hashlib.sha256(json.dumps(settings, sort_keys=True).encode()).hexdigest()
+
+
 def data_provenance():
-    """The pinned snapshot's SHA-256 and the SHA-256 of the stored split."""
-    return {"snapshot_sha256": read_lock()["sha256"], "splits_sha256": sha256_of(SPLITS_PATH)}
+    """SHA-256 of the pinned snapshot, of the stored split and of the split settings."""
+    return {
+        "snapshot_sha256": read_lock()["sha256"],
+        "splits_sha256": sha256_of(SPLITS_PATH),
+        "split_settings_sha256": split_settings_sha256(),
+    }
 
 
 def provenance():
-    """What the stored texts are made with: the spaCy versions, the snapshot and the split."""
+    """What the stored texts are made with: the spaCy versions, the snapshot, the split and its
+    settings."""
     return versions() | data_provenance()
 
 
@@ -74,7 +100,8 @@ def write_texts(path=PROCESSED_PATH):
 
 
 def load_texts(path=PROCESSED_PATH):
-    """The stored texts; raises if spaCy, its model, the snapshot or the split changed since."""
+    """The stored texts; raises if spaCy, its model, the snapshot, the split or its settings
+    changed since."""
     texts = pd.read_parquet(path)
     expected = provenance()
     changed = sorted(

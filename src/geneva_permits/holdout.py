@@ -13,6 +13,7 @@ from geneva_permits import camembert, classical
 from geneva_permits.baseline import majority_label
 from geneva_permits.config import load_config
 from geneva_permits.evaluate import bootstrap
+from geneva_permits.identity import current_identity
 from geneva_permits.preprocess import load_texts
 from geneva_permits.splits import TRAIN, load_splits
 from geneva_permits.tracking import (
@@ -71,9 +72,9 @@ def score_linearsvc(spec, train, test, settings):
     return predictions
 
 
-def score_camembert(weighting, seed, test, config):
-    """The stored main model of a weighting and seed, scored on the test rows."""
-    run_id = camembert.stored_run(weighting, seed, config)
+def score_camembert(weighting, seed, test, config, identity):
+    """The current main model of a weighting and seed, scored on the test rows."""
+    run_id = camembert.stored_run(weighting, seed, identity)
     settings = config["training"]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = camembert.load_stored(run_id).to(device)
@@ -87,7 +88,7 @@ def score_camembert(weighting, seed, test, config):
                 "weighting": weighting,
                 "seed": seed,
                 "stored_run": run_id,
-                "fingerprint": camembert.fingerprint(settings, config["models"]["primary"]),
+                "fingerprint": identity["fingerprint"],
             }
         )
         predictions = camembert.predict(model, loader, device, settings["precision"])
@@ -125,9 +126,10 @@ def run_test(texts=None, groups=None, config=None):
     for spec in models["linearsvc"]:
         name = f"linearsvc {spec['variant']} {spec['weighting']}"
         predictions[name] = score_linearsvc(spec, train, test, config["classical"])
-    weighting = models["camembert"]["weighting"]
+    weighting, identity = models["camembert"]["weighting"], current_identity(config, texts)
     predictions["camembert"] = [
-        score_camembert(weighting, seed, test, config) for seed in models["camembert"]["seeds"]
+        score_camembert(weighting, seed, test, config, identity)
+        for seed in models["camembert"]["seeds"]
     ]
     comparisons = {
         "primary": [plan["primary_comparison"]],

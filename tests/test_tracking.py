@@ -27,6 +27,9 @@ from geneva_permits.tracking import (
 )
 
 F1 = {f"f1_{c}": 0.0 for c in CLASSES}
+IDENTITY = {"fingerprint": "f" * 64, "learning_rate": 3e-5}
+CURRENT = {"model": "camembert", "fingerprint": "f" * 64, "learning_rate": 3e-5}
+OTHER = "0" * 64  # the fingerprint of runs trained otherwise
 
 
 def log(experiment, params, macro_f1):
@@ -73,21 +76,26 @@ def test_reading_runs_leaves_the_active_experiment_alone(mlruns):
         assert mlflow.active_run().info.experiment_id == probe.experiment_id
 
 
-def test_overview_takes_the_best_grid_point_and_the_mean_over_seeds(mlruns):
+def test_overview_takes_the_best_grid_point_and_the_mean_over_current_seeds(mlruns):
     log(SELECTION, {"model": "majority", "label": "REN"}, 0.07)
     svc = {"model": "linearsvc", "variant": "A", "weighting": "none", "ngram_range": "1-2"}
     log(SELECTION, svc | {"C_log2": -3}, 0.6)
     log(SELECTION, svc | {"C_log2": -1}, 0.5)
-    bert = {"model": "camembert", "weighting": "none", "stage": "main"}
+    bert = CURRENT | {"weighting": "none", "stage": "main"}
     log(SELECTION, bert | {"seed": 42}, 0.6)
     log(SELECTION, bert | {"seed": 13}, 0.7)
     log(SELECTION, bert | {"seed": 13, "stage": "pilot"}, 0.9)  # not a main run
-    table = overview(runs(SELECTION))
+    log(SELECTION, bert | {"seed": 73, "fingerprint": OTHER}, 0.1)
+    log(SELECTION, bert | {"seed": 73, "learning_rate": 5e-5}, 0.1)
+    table = overview(runs(SELECTION), IDENTITY)
     assert table["model"].tolist() == ["majority", "linearsvc", "camembert"]
     assert table["macro_f1"].tolist() == pytest.approx([0.07, 0.6, 0.65])
     assert table.loc[1, "C_log2"] == "-3"
     assert table.loc[2, "seed"] == "13, 42"
     assert "f1_AFF" in table.columns
+    log(SELECTION, bert | {"seed": 42}, 0.8)  # a second run of one seed
+    with pytest.raises(ValueError, match="share a point"):
+        overview(runs(SELECTION), IDENTITY)
 
 
 def test_histories_and_mean_tables_line_runs_up(mlruns):
@@ -114,11 +122,14 @@ def test_learning_curves_join_both_models_with_the_full_camembert_set(mlruns):
     draw = {"fraction": 0.1, "seed": 13, "train_rows": 3}
     log(LEARNING_CURVES, {"model": "linearsvc", "C_log2": -3} | draw, 0.5)
     log(LEARNING_CURVES, {"model": "linearsvc", "C_log2": -1} | draw, 0.4)
-    log(LEARNING_CURVES, {"model": "camembert", "weighting": "none"} | draw, 0.6)
-    main = {"model": "camembert", "stage": "main", "seed": 13, "train_rows": 30}
+    curve = CURRENT | {"stage": "curves", "weighting": "none"} | draw
+    log(LEARNING_CURVES, curve, 0.6)
+    log(LEARNING_CURVES, curve | {"fingerprint": OTHER}, 0.9)
+    main = CURRENT | {"stage": "main", "seed": 13, "train_rows": 30}
     log(SELECTION, main | {"weighting": "none"}, 0.7)
     log(SELECTION, main | {"weighting": "full"}, 0.65)  # not the curves' weighting
-    table = learning_curves()
+    log(SELECTION, main | {"weighting": "none", "fingerprint": OTHER}, 0.9)
+    table = learning_curves(IDENTITY)
     assert table.values.tolist() == [
         ["camembert", 0.1, 13, 3, 0.6],
         ["camembert", 1.0, 13, 30, 0.7],
@@ -127,10 +138,15 @@ def test_learning_curves_join_both_models_with_the_full_camembert_set(mlruns):
 
 
 def test_the_test_experiment_reads_back_per_run_and_summarized(mlruns):
+    main = CURRENT | {"stage": "main", "weighting": "none"}
+    stored = {seed: log(SELECTION, main | {"seed": seed}, 0.7) for seed in [13, 42]}
+    stored[73] = log(SELECTION, main | {"seed": 73, "fingerprint": OTHER}, 0.7)
     log(TEST, {"model": "majority", "label": "REN"}, 0.06)
     log(TEST, {"model": "linearsvc", "variant": "B", "weighting": "medium", "C_log2": -3}, 0.62)
-    log(TEST, {"model": "camembert", "weighting": "none", "seed": 42}, 0.66)
-    log(TEST, {"model": "camembert", "weighting": "none", "seed": 13}, 0.68)
+    bert = {"model": "camembert", "weighting": "none"}
+    log(TEST, bert | {"seed": 42, "stored_run": stored[42]}, 0.66)
+    log(TEST, bert | {"seed": 13, "stored_run": stored[13]}, 0.68)
+    log(TEST, bert | {"seed": 73, "stored_run": stored[73]}, 0.1)  # a model trained otherwise
     set_experiment(TEST)
     with start_run(run_name="bootstrap"):
         table = pd.DataFrame(
@@ -147,10 +163,10 @@ def test_the_test_experiment_reads_back_per_run_and_summarized(mlruns):
         predictions = pd.DataFrame({"record_key": ["k1", "k2"], "label": ["REN", "PI"]})
         mlflow.log_table(predictions.assign(majority="REN"), "predictions.json")
     set_experiment("probe")  # reading must not depend on the active experiment
-    per_run = holdout_runs()
+    per_run = holdout_runs(IDENTITY)
     assert per_run["model"].tolist() == ["majority", "linearsvc", "camembert", "camembert"]
     assert per_run["seed"].tolist()[2:] == ["13", "42"]
-    summary = holdout_overview()
+    summary = holdout_overview(IDENTITY)
     assert summary["model"].tolist() == ["majority", "linearsvc", "camembert"]
     assert summary.loc[2, "macro_f1"] == pytest.approx(0.67)
     assert summary.loc[2, "seed"] == "13, 42"
@@ -158,6 +174,9 @@ def test_the_test_experiment_reads_back_per_run_and_summarized(mlruns):
     assert intervals.loc[("camembert - linearsvc B medium", "macro_f1"), "comparison"] == "primary"
     assert intervals.loc[("camembert", "macro_f1"), "high"] == pytest.approx(0.71)
     assert holdout_predictions().loc["k2", "label"] == "PI"
+    log(TEST, bert | {"seed": 13, "stored_run": stored[13]}, 0.5)  # a second scoring of one seed
+    with pytest.raises(ValueError, match="refusing to average"):
+        holdout_overview(IDENTITY)
 
 
 def test_camembert_seeds_join_the_test_runs_with_their_stored_main_runs(mlruns):
@@ -165,13 +184,13 @@ def test_camembert_seeds_join_the_test_runs_with_their_stored_main_runs(mlruns):
     for seed, epoch, macro_f1 in [(42, 3, 0.70), (13, 5, 0.71)]:
         set_experiment(SELECTION)
         with start_run():
-            mlflow.log_params({"model": "camembert", "stage": "main", "seed": seed})
+            mlflow.log_params(CURRENT | {"stage": "main", "seed": seed})
             mlflow.log_metrics({"kept_epoch": epoch, "macro_f1": macro_f1})
             stored[seed] = mlflow.active_run().info.run_id
     for seed, macro_f1 in [(42, 0.68), (13, 0.66)]:
         params = {"model": "camembert", "seed": seed, "stored_run": stored[seed]}
         log(TEST, params, macro_f1)
-    table = camembert_seeds()
+    table = camembert_seeds(IDENTITY)
     assert table["seed"].tolist() == [13, 42]
     assert table["kept_epoch"].tolist() == [5, 3]
     assert table["validation_macro_f1"].tolist() == pytest.approx([0.71, 0.70])

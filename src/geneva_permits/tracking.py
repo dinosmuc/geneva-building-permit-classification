@@ -1,7 +1,8 @@
 """One MLflow store for the whole project, under mlruns/ at the repository root.
 
 Browse it with `uv run mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db`. The
-read helpers below return pandas tables for the results notebooks.
+read helpers below return pandas tables for the results notebooks; they read CamemBERT runs only
+through identity.current_runs, with the current fingerprint and learning rate.
 """
 
 import subprocess
@@ -10,6 +11,7 @@ import mlflow
 import pandas as pd
 
 from geneva_permits import config, evaluate, source
+from geneva_permits.identity import current_identity, current_runs
 from geneva_permits.weights import OPTIONS
 
 SELECTION = "selection"  # experiment holding every run scored on the validation rows
@@ -75,6 +77,12 @@ def runs(experiment, filter_string=""):
     return mlflow.search_runs(experiment_names=[experiment], filter_string=filter_string)
 
 
+def camembert_runs(experiment, stage, identity=None):
+    """The current CamemBERT runs of a stage (identity.current_runs)."""
+    stage_runs = runs(experiment, f"params.model = 'camembert' and params.stage = '{stage}'")
+    return current_runs(stage_runs, identity)
+
+
 def best(selected_runs, by):
     """The run with the highest macro-F1 per group of params; an exact tie keeps the earlier run."""
     ordered = selected_runs.sort_values("start_time").sort_values(
@@ -131,12 +139,15 @@ def tidy(rows):
 
 def summarize(model_runs):
     """One row per model, variant and weighting: the majority run, the best LinearSVC grid point,
-    the CamemBERT mean over seeds (seed column: the seeds averaged)."""
+    the CamemBERT mean over seeds (seed column: the seeds averaged). Two CamemBERT runs of one
+    weighting and seed raise rather than enter the mean."""
     model = model_runs["params.model"]
     linearsvc = best(model_runs[model.eq("linearsvc")], ["variant", "weighting"])
+    camembert = model_runs[model.eq("camembert")]
+    if camembert.reindex(columns=[*KEYS, "params.seed"]).duplicated().any():
+        raise ValueError("two CamemBERT runs share a weighting and seed; refusing to average them")
     camembert = (
-        model_runs[model.eq("camembert")]
-        .sort_values("params.seed")
+        camembert.sort_values("params.seed")
         .groupby(KEYS, dropna=False, sort=False)
         .agg({**dict.fromkeys(SCORES, "mean"), "params.seed": ", ".join})
         .reset_index()
@@ -144,31 +155,41 @@ def summarize(model_runs):
     return tidy(pd.concat([model_runs[model.eq("majority")], linearsvc, camembert]))
 
 
-def overview(selection):
+def overview(selection, identity=None):
     """Validation scores per model, variant and weighting: the majority run, the best grid point of
-    each LinearSVC variant and weighting, the mean over seeds of each main CamemBERT weighting."""
-    model, stage = selection["params.model"], selection["params.stage"]
-    return summarize(selection[model.ne("camembert") | stage.eq("main")])
+    each LinearSVC variant and weighting, the mean over seeds of each current main CamemBERT
+    weighting."""
+    main = current_runs(selection[selection["params.stage"].eq("main")], identity)
+    return summarize(pd.concat([selection[selection["params.model"].ne("camembert")], main]))
 
 
 # holdout_*, not test_*: pytest collects test_* functions that a test module imports
-def holdout_runs():
+def holdout_models(identity=None):
+    """The model runs of the test experiment; a CamemBERT run only when it scored a current main
+    run."""
+    scored = runs(TEST)
+    scored = scored[scored["params.model"].notna()]  # the bootstrap run carries no model
+    main = camembert_runs(SELECTION, "main", identity)
+    stored = scored.reindex(columns=["params.stored_run"])["params.stored_run"]
+    return scored[scored["params.model"].ne("camembert") | stored.isin(main["run_id"])]
+
+
+def holdout_runs(identity=None):
     """The model runs of the test experiment, one row each, CamemBERT once per seed."""
-    scored = runs(TEST)
-    return tidy(scored[scored["params.model"].notna()])  # the bootstrap run carries no model
+    return tidy(holdout_models(identity))
 
 
-def holdout_overview():
+def holdout_overview(identity=None):
     """Test scores per model, variant and weighting, CamemBERT as the mean over its seeds."""
-    scored = runs(TEST)
-    return summarize(scored[scored["params.model"].notna()])
+    return summarize(holdout_models(identity))
 
 
-def camembert_seeds():
+def camembert_seeds(identity=None):
     """Each CamemBERT seed on the test beside its stored main run: kept epoch, validation score."""
-    tested = runs(TEST, "params.model = 'camembert'").set_index("params.stored_run")
-    stored = runs(SELECTION, "params.model = 'camembert' and params.stage = 'main'")
-    stored = stored.set_index("run_id").loc[tested.index]
+    identity = identity or current_identity()
+    tested = holdout_models(identity)
+    tested = tested[tested["params.model"].eq("camembert")].set_index("params.stored_run")
+    stored = camembert_runs(SELECTION, "main", identity).set_index("run_id").loc[tested.index]
     rows = pd.DataFrame(
         {
             "seed": tested["params.seed"].astype(int).to_numpy(),
@@ -196,19 +217,16 @@ def holdout_predictions():
     return load_table(bootstrap_run()["run_id"], "predictions.json").set_index("record_key")
 
 
-def learning_curves():
+def learning_curves(identity=None):
     """Best validation macro-F1 per training draw of both models: the retuned LinearSVC points, the
-    CamemBERT curve runs, and the main CamemBERT runs of their weighting as its full set."""
+    current CamemBERT curve runs, and the current main runs of their weighting as its full set."""
+    identity = identity or current_identity()
     curve_runs = runs(LEARNING_CURVES)
-    model = curve_runs["params.model"]
-    linearsvc = best(curve_runs[model.eq("linearsvc")], ["fraction", "seed"])
-    camembert = curve_runs[model.eq("camembert")]
+    linearsvc = best(curve_runs[curve_runs["params.model"].eq("linearsvc")], ["fraction", "seed"])
+    camembert = current_runs(curve_runs, identity)
     (weighting,) = camembert["params.weighting"].unique()
-    full = runs(
-        SELECTION,
-        "params.model = 'camembert' and params.stage = 'main' "
-        f"and params.weighting = '{weighting}'",
-    ).assign(**{"params.fraction": "1.0"})
+    full = camembert_runs(SELECTION, "main", identity)
+    full = full[full["params.weighting"].eq(weighting)].assign(**{"params.fraction": "1.0"})
     columns = [
         "params.model",
         "params.fraction",

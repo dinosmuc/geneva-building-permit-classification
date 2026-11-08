@@ -22,15 +22,32 @@ uv run mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db
 
 Every setting is in `config.yaml`. Runs are stored in the MLflow store under `mlruns/`; the test
 runs are tagged with their git commit and the snapshot's SHA-256. Every CamemBERT run logs a
-fingerprint of its training settings, model revision and data. The CamemBERT steps resume where they
-stopped and reuse a finished run only when its fingerprint matches. `data/processed/texts.parquet`
-records the snapshot and split it was made from and is refused once either changes.
+fingerprint of its training settings, the model revision and the training and validation rows it
+was given. The CamemBERT steps resume where they stopped and reuse a finished run only when its
+fingerprint matches. Selection, the test, `permits predict` and the notebooks read only finished
+runs with the current fingerprint and learning rate; two runs of one weighting and seed raise an
+error instead of being averaged. `data/processed/texts.parquet` records the snapshot, the split and
+the split settings it was made from and is refused once any of them changes.
 `permits data verify` re-checks the archive, and `permits data splits` rewrites
 `data/splits/splits.csv`, which is only needed after a deliberate change to the split rules.
 
 **Hardware.** CamemBERTav2 fine-tuning ran on one NVIDIA GeForce RTX 2070 (8 GB) in fp16, about
 18 minutes per run and four hours for the pilot, the nine main runs and the curves together. The LinearSVC grids take
 half an hour on a CPU.
+
+## Settings and sources
+
+| Setting | Value | Source |
+|---|---|---|
+| LinearSVC C grid | 2^-5, 2^-3, …, 2^15 | Hsu, Chang & Lin (2003), *A Practical Guide to Support Vector Classification*, §3.2 |
+| Epochs | 10, keeping the best validation epoch | He, Gao & Chen (2023), DeBERTaV3, Table 11 |
+| AdamW | betas (0.9, 0.999), epsilon 1e-6, weight decay 0.01, gradient clipping 1.0 | DeBERTaV3, Table 11 |
+| Batch size | 32 | Antoun et al. (2024), CamemBERT 2.0, Table 7 |
+| Warmup | 10% of the steps, then linear decay | CamemBERT 2.0, Table 7 |
+| Pilot learning rates | 3e-5, 5e-5, 7e-5; 3e-5 kept | CamemBERT 2.0, Table 7 |
+| Bootstrap | 2,000 dossier-clustered resamples, 95% percentile intervals | Efron & Tibshirani (1993), *An Introduction to the Bootstrap* |
+| Paired bootstrap | model differences on the same resamples | Berg-Kirkpatrick, Burkett & Klein (2012) |
+| Class weights | none; medium: sqrt(n / (K n_c)) rescaled to mean 1; full: n / (K n_c) | King & Zeng (2001); Mahajan et al. (2018) |
 
 ## Data
 

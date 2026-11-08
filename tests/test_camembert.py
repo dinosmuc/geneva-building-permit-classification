@@ -11,10 +11,12 @@ from transformers import (
     PreTrainedTokenizerFast,
 )
 
-from geneva_permits import camembert, preprocess
+from geneva_permits import camembert
 from geneva_permits.config import load_config
 from geneva_permits.curves import nested_subsets
 from geneva_permits.evaluate import CLASSES
+from geneva_permits.identity import current_identity, fingerprint
+from geneva_permits.preprocess import train_validation
 
 WORDS = ["villa", "bureaux", "immeuble", "route", "jardin", "toiture", "garage", "usine", "hangar"]
 TRAIN_LABELS = [
@@ -30,6 +32,7 @@ TRAIN_LABELS = [
 ]  # every class, REN twice
 TEXTS = pd.DataFrame(
     {
+        "record_key": [f"k{i}" for i in range(13)],
         "partition": ["train_original"] * 9 + ["validation"] * 4,
         "label": TRAIN_LABELS + ["VIL", "REN", "NOU", "AFF"],
         "text": [f"{w} {w}" for w in WORDS] + ["villa", "bureaux", "immeuble", "usine"],
@@ -38,6 +41,7 @@ TEXTS = pd.DataFrame(
 CURVE_TEXTS = (
     pd.DataFrame(  # four rows per class: the 75% draws of seeds 13 and 42 keep every class
         {
+            "record_key": [f"k{i}" for i in range(36)],
             "partition": ["train_original"] * 32 + ["validation"] * 4,
             "label": [c for c in CLASSES for _ in range(4)] + ["VIL", "REN", "NOU", "AFF"],
             "text": [f"{WORDS[i % 9]} {WORDS[(i + 1) % 9]}" for i in range(32)]
@@ -61,6 +65,11 @@ SETTINGS = {
     "adam_epsilon": 1e-6,
     "max_grad_norm": 1.0,
 }
+
+
+def toy_identity(texts=TEXTS, settings=SETTINGS):
+    """The current identity of runs on toy texts and settings."""
+    return current_identity(load_config() | {"training": settings}, texts)
 
 
 def toy_tokenizer():
@@ -139,30 +148,18 @@ def test_main_keeps_the_best_epoch_and_stores_its_model(toy, mlruns):
     assert run["metrics.kept_epoch"] == history.index(max(history)) + 1  # the earliest maximum
     assert run["metrics.macro_f1"] == pytest.approx(max(history))
     assert any(mlruns.rglob("model/model.safetensors"))
-    assert camembert.selected() in camembert.OPTIONS
+    assert camembert.selected(toy_identity()) in camembert.OPTIONS
 
 
-def test_the_fingerprint_follows_the_training_settings_the_model_and_the_data(
-    tmp_path, monkeypatch
-):
-    model = load_config()["models"]["primary"]
-    base = camembert.fingerprint(SETTINGS, model)
-    assert camembert.fingerprint(SETTINGS | {"seeds": [1], "learning_rate": 1.0}, model) == base
-    assert camembert.fingerprint(SETTINGS | {"max_grad_norm": 0.5}, model) != base
-    assert camembert.fingerprint(SETTINGS, model | {"revision": "0" * 40}) != base
-    split = tmp_path / "splits.csv"
-    split.write_text("record_key,partition\n")
-    monkeypatch.setattr(preprocess, "SPLITS_PATH", split)
-    assert camembert.fingerprint(SETTINGS, model) != base
-
-
-def test_every_run_logs_its_fingerprint(toy):
+def test_every_run_logs_the_fingerprint_of_its_settings_and_rows(toy):
     camembert.run_pilot(TEXTS, SETTINGS)
     camembert.run_main(TEXTS, SETTINGS)
-    fingerprint = camembert.fingerprint(SETTINGS, load_config()["models"]["primary"])
+    model = load_config()["models"]["primary"]
     runs = mlflow.search_runs(experiment_names=["selection"])
     assert len(runs) == 5
-    assert runs["params.fingerprint"].eq(fingerprint).all()
+    assert (
+        runs["params.fingerprint"].eq(fingerprint(SETTINGS, model, *train_validation(TEXTS))).all()
+    )
 
 
 def test_main_reruns_a_point_whose_finished_run_has_another_fingerprint(toy, monkeypatch):
@@ -177,7 +174,10 @@ def test_main_reruns_a_point_whose_finished_run_has_another_fingerprint(toy, mon
     camembert.run_main(TEXTS, SETTINGS)
     assert calls == []  # the same fingerprint: every point is reused
     camembert.run_main(TEXTS, SETTINGS | {"max_grad_norm": 0.5})
-    assert calls == ["none", "medium", "full"]
+    relabelled = TEXTS.copy()
+    relabelled.loc[12, "label"] = "PI"  # one validation row, passed in from Python
+    camembert.run_main(relabelled, SETTINGS)
+    assert calls == ["none", "medium", "full"] * 2
     assert len(mlflow.search_runs(experiment_names=["selection"])) == 3  # the earlier runs stay
 
 
@@ -245,11 +245,11 @@ def test_draw_takes_the_nested_subset_of_a_curve_point_and_every_row_otherwise()
 
 
 def test_curves_run_the_selected_weighting_on_each_draw_below_the_full_set(toy, mlruns):
-    camembert.run_main(TEXTS, SETTINGS)
+    camembert.run_main(CURVE_TEXTS, SETTINGS)
     settings = SETTINGS | {"seeds": [13, 42]}
     results = camembert.run_curves(CURVE_TEXTS, settings, fractions=[0.75, 1.0])
     assert results[["fraction", "seed"]].values.tolist() == [[0.75, 13], [0.75, 42]]
-    assert set(results["weighting"]) == {camembert.selected()}
+    assert set(results["weighting"]) == {camembert.selected(toy_identity(CURVE_TEXTS, settings))}
     assert results["train_rows"].eq(24).all()
     assert results["epoch"].between(1, SETTINGS["epochs"]).all()
     runs = mlflow.search_runs(experiment_names=["learning_curves"])

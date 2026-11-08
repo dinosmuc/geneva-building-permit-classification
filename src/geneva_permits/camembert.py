@@ -7,8 +7,6 @@ from tokenizer.json directly. Words longer than 16 characters become [UNK] (its
 max_input_chars_per_word): 178 training tokens, e.g. "télécommunication".
 """
 
-import hashlib
-import json
 import tempfile
 import time
 
@@ -28,10 +26,12 @@ from transformers import (
 from geneva_permits.config import load_config
 from geneva_permits.curves import draws, nested_subsets
 from geneva_permits.evaluate import CLASSES, scores
-from geneva_permits.preprocess import data_provenance, load_texts, train_validation
+from geneva_permits.identity import current_identity, fingerprint
+from geneva_permits.preprocess import load_texts, train_validation
 from geneva_permits.tracking import (
     LEARNING_CURVES,
     SELECTION,
+    camembert_runs,
     log_evaluation,
     runs,
     set_experiment,
@@ -54,19 +54,6 @@ EXPERIMENT = {PILOT: SELECTION, MAIN: SELECTION, CURVES: LEARNING_CURVES}
 
 POINT = {"weighting": str, "seed": int, "learning_rate": float, "fraction": float}
 CHECKPOINTS = ["best", "final"]
-TRAINED_WITH = [
-    "precision",
-    "max_seq_length",
-    "batch_size",
-    "epochs",
-    "checkpoint",
-    "schedule",
-    "warmup_ratio",
-    "weight_decay",
-    "adam_betas",
-    "adam_epsilon",
-    "max_grad_norm",
-]
 LOGGED = [
     "max_seq_length",
     "batch_size",
@@ -148,36 +135,13 @@ def predict(model, loader, device, precision):
     return [CLASSES[i] for i in logits(model, loader, device, precision).argmax(-1).tolist()]
 
 
-def fingerprint(settings, model_settings):
-    """SHA-256 of what a run depends on beyond its point: the training settings fit uses, the
-    pinned model and the data (snapshot and stored split)."""
-    identity = {
-        "training": {name: settings[name] for name in TRAINED_WITH},
-        "model": {name: model_settings[name] for name in ["id", "revision"]},
-        "data": data_provenance(),
-    }
-    return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
-
-
-def stored_run(weighting, seed, config):
-    """The id of the finished main run that stored the model of a weighting and seed at the
-    configured learning rate and fingerprint; raises unless exactly one run matches."""
-    settings = config["training"]
-    identity = {
-        "stage": MAIN,
-        "weighting": weighting,
-        "seed": seed,
-        "learning_rate": settings["learning_rate"],
-        "fingerprint": fingerprint(settings, config["models"]["primary"]),
-    }
-    conditions = " and ".join(f"params.{name} = '{value}'" for name, value in identity.items())
-    main = runs(
-        SELECTION,
-        f"params.model = 'camembert' and attributes.status = 'FINISHED' and {conditions}",
-    )
-    if len(main) != 1:
-        raise LookupError(f"expected one stored main run for {identity}, found {len(main)}")
-    return main["run_id"].iloc[0]
+def stored_run(weighting, seed, identity=None):
+    """The id of the current main run (identity.current_runs) of a weighting and seed."""
+    main = camembert_runs(SELECTION, MAIN, identity)
+    match = main[main["params.weighting"].eq(weighting) & main["params.seed"].eq(str(seed))]
+    if match.empty:
+        raise LookupError(f"no current main run of weighting {weighting} and seed {seed}")
+    return match["run_id"].iloc[0]
 
 
 def load_stored(run_id):
@@ -313,7 +277,7 @@ def finished(stage, run_fingerprint):
     """Points of this stage finished in the store with this fingerprint, by key, with their results.
 
     Runs the stage left unfinished, from an interrupted command, are deleted. Finished runs with
-    another fingerprint stay in the store but are not reused.
+    another fingerprint stay in the store but are not reused; two with one point raise.
     """
     done = runs(EXPERIMENT[stage], f"params.model = 'camembert' and params.stage = '{stage}'")
     if done.empty:
@@ -328,6 +292,8 @@ def finished(stage, run_fingerprint):
             for name, parse in POINT.items()
             if pd.notna(r.get(f"params.{name}"))
         }
+        if key(point) in results:
+            raise ValueError(f"two finished {stage} runs share the point {point}")
         results[key(point)] = point | {
             "train_rows": int(r["params.train_rows"]),
             "epoch": int(r["metrics.kept_epoch"]),
@@ -344,7 +310,7 @@ def run_points(stage, points, texts=None, settings=None):
     train, validation = train_validation(load_texts() if texts is None else texts)
     set_experiment(EXPERIMENT[stage])
     model_settings = config["models"]["primary"]
-    run_fingerprint = fingerprint(settings, model_settings)
+    run_fingerprint = fingerprint(settings, model_settings, train, validation)
     done = finished(stage, run_fingerprint)
     results = [
         done.get(key(point))
@@ -388,7 +354,7 @@ def run_curves(texts=None, settings=None, fractions=None):
     config = load_config()
     settings = settings or config["training"]
     fractions = fractions or config["selection"]["learning_curves"]["fractions"]
-    weighting = selected()
+    weighting = selected(current_identity(config | {"training": settings}, texts))
     learning_rate = settings["learning_rate"]
     points = [
         {"weighting": weighting, "seed": seed, "learning_rate": learning_rate, "fraction": f}
@@ -403,6 +369,6 @@ def best_weighting(main_runs):
     return means.reindex(OPTIONS).idxmax()
 
 
-def selected():
-    """The weighting selected from the main CamemBERT runs in the project store."""
-    return best_weighting(runs(SELECTION, "params.model = 'camembert' and params.stage = 'main'"))
+def selected(identity=None):
+    """The weighting selected from the current main CamemBERT runs in the project store."""
+    return best_weighting(camembert_runs(SELECTION, MAIN, identity))

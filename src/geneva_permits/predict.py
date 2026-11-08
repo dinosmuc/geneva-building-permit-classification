@@ -6,13 +6,14 @@ import torch
 from geneva_permits import camembert
 from geneva_permits.config import load_config
 from geneva_permits.evaluate import CLASSES
+from geneva_permits.identity import current_identity
 
 
 def load(config):
     """The configured stored model and its tokenizer, on the available device."""
     choice = config["prediction"]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    run_id = camembert.stored_run(choice["weighting"], choice["seed"], config)
+    run_id = camembert.stored_run(choice["weighting"], choice["seed"], current_identity(config))
     model = camembert.load_stored(run_id).to(device)
     return model, camembert.load_tokenizer(config["models"]["primary"]), device
 
