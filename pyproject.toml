@@ -1,6 +1,6 @@
 [project]
 name = "geneva-building-permit-classification"
-version = "1.0.0"
+version = "1.0.1"
 requires-python = ">=3.14,<3.15"
 dependencies = [
     "fr-core-news-md",
