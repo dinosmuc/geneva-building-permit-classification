@@ -19,7 +19,8 @@ data/processed/
 # experiment outputs — checkpoints, raw API responses, tracking stores
 mlruns/
 mlartifacts/
-mlflow.db                # a stray default store; the project's is mlruns/mlflow.db
+# a stray default store; the project's is mlruns/mlflow.db
+mlflow.db
 results/**/checkpoints/
 results/**/raw_responses/
 *.safetensors

@@ -5,29 +5,44 @@ This project has two parts. It is a classification of French building-permit des
 ## Reproduce
 
 ```sh
-uv sync                               
-uv run permits data fetch             
-uv run permits data preprocess       
-uv run permits train majority         
-uv run permits train linearsvc A     
-uv run permits train linearsvc B     
-uv run permits train curves           
-uv run permits train camembert pilot 
-uv run permits train camembert main   
-uv run permits train camembert curves 
-uv run permits evaluate test          
-uv run permits predict "<description>"   
-uv run mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db  
+uv sync
+uv run permits data fetch
+uv run permits data preprocess
+uv run permits train majority
+uv run permits train linearsvc A
+uv run permits train linearsvc B
+uv run permits train curves
+uv run permits train camembert pilot
+uv run permits train camembert main
+uv run permits train camembert curves
+uv run permits evaluate test
+uv run permits predict "<description>"
+uv run mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db
 ```
 
-Every setting is in `config.yaml`. Runs are stored in the MLflow store under `mlruns/`; the test
-runs are tagged with their git commit and the snapshot's SHA-256. Every CamemBERT run logs a
-fingerprint of its training settings, the model revision and the training and validation rows it
-was given. The CamemBERT steps resume where they stopped and reuse a finished run only when its
-fingerprint matches. Selection, the test, `permits predict` and the notebooks read only finished
-runs with the current fingerprint and learning rate; two runs of one weighting and seed raise an
-error instead of being averaged. `data/processed/texts.parquet` records the snapshot, the split and
-the split settings it was made from and is refused once any of them changes.
+Every setting is in `config.yaml`. Some of its keys record a decision or reserve a name for the
+research extension and are not read by the code. The `teacher` block, `training.conditions` and
+the `evaluation` entries for the recent test (`primary_partition`, `primary_contrast`,
+`text_disjoint_against`) belong to the extension. The `selection` rules apart from the curve
+fractions, `evaluation.primary_metric`, `test_policy` and `test.metrics`, the descriptive entries
+under `data` (`source`, `input_field`, `excluded_fields`), `preprocessing.stop_words`,
+`weighting.options`, the model's `params` and `defaults` and `paths.results` state what the code
+does. `data.dedup`, `data.excluded_classes`, `evaluation.test.groups` and the bootstrap's
+`cluster_by`, `interval` and `paired` are only hashed or logged.
+
+Runs are stored in the MLflow store under `mlruns/`; the test runs are tagged with their git
+commit and the snapshot's SHA-256. Every CamemBERT run logs a fingerprint of its training
+settings, the model revision and the training and validation rows it was given. The selection and
+learning-curve runs (31 October and 1 November 2026) were trained before runs were tagged and
+before the fingerprint existed: they carry neither tag, and the fingerprint of the 18 CamemBERT
+runs (3 pilot, 9 main, 6 curve) was added to the store on 7 November from the unchanged settings,
+model revision and rows. The CamemBERT steps resume where they stopped and reuse a finished run
+only when its fingerprint matches. Selection, the test, `permits predict` and the notebooks read
+only finished runs with the current fingerprint and learning rate; two runs of one weighting and
+seed raise an error instead of being averaged. `permits predict` uses the unweighted seed-13 model
+(`prediction` in `config.yaml`), the run with the highest validation macro-F1 of the three
+(0.714). `data/processed/texts.parquet` records the snapshot, the split and the split settings it
+was made from and is refused once any of them changes.
 `permits data verify` re-checks the archive, and `permits data splits` rewrites
 `data/splits/splits.csv`, which is only needed after a deliberate change to the split rules.
 
@@ -82,7 +97,6 @@ On the 2013 test, scored once with every setting fixed beforehand, CamemBERTav2 
 test. AFF, the rarest class with 12 test rows, stays the weakest for both models, and the large
 confusions, PI with REN and PI with EQU, are shared. `04_test_results.ipynb` holds the per-class
 intervals, the confusion matrices and the error analysis.
-
 
 ## Checks
 

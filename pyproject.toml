@@ -3,17 +3,14 @@ name = "geneva-building-permit-classification"
 version = "1.0.0"
 requires-python = ">=3.14,<3.15"
 dependencies = [
-    "accelerate>=1.15.0",
-    "datasets>=5.0.1",
     "fr-core-news-md",
     "httpx>=0.28.1",
+    "huggingface-hub>=1.33.0",
     "matplotlib>=3.11.2",
     "mlflow>=3.16.1",
     "numpy>=2.5.3",
     "pandas>=3.0.6",
     "pyarrow>=25.0.1",
-    "pydantic>=2.13.5",
-    "python-dotenv>=1.2.3",
     "pyyaml>=6.0.3",
     "scikit-learn>=1.9.1",
     "seaborn>=0.13.2",
